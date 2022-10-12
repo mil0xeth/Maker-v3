@@ -4,11 +4,19 @@ pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
+import {SafeERC20,IERC20,Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "../../interfaces/maker/IMaker.sol";
 
+//UniswapV3
+import "../../interfaces/swap/ISwapRouter.sol";
+
 library MakerDaiDelegateLib {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
+    
+    // Uniswap V3 router
+    address internal constant univ3router = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
 
     // Units used in Maker contracts
     uint256 internal constant WAD = 10**18;
@@ -357,4 +365,48 @@ library MakerDaiDelegateLib {
         // Adapters will automatically handle the difference of precision
         wad = amt.mul(10**(18 - GemJoinLike(gemJoin).dec()));
     }
+
+    ////// UNISWAP V3:
+    function swapKnownIn(uint256 _amountIn, address _tokenIn, address _tokenMid, address _tokenOut, uint24 _feeTokenToMid, uint24 _feeMidToOut) external returns (uint256) {
+        _checkAllowance(univ3router, _tokenIn, _amountIn);
+        if (_tokenIn == _tokenOut || _amountIn == 0) {
+            return _amountIn;
+        }
+        if ( _tokenIn == _tokenMid || _tokenMid == _tokenOut ) {
+            require (_feeTokenToMid == _feeMidToOut, "feeTokenToMid != feeMidToOut");
+            ISwapRouter.ExactInputSingleParams memory params =
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: _tokenIn,
+                tokenOut: _tokenOut,
+                fee: _feeTokenToMid,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: _amountIn,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+            return ISwapRouter(univ3router).exactInputSingle(params);
+        }
+        ISwapRouter.ExactInputParams memory params =
+            ISwapRouter.ExactInputParams({
+                path: abi.encodePacked(_tokenIn, _feeTokenToMid, _tokenMid, _feeMidToOut, _tokenOut),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: _amountIn,
+                amountOutMinimum: 0
+            });
+        return ISwapRouter(univ3router).exactInput(params);
+    }
+
+    function _checkAllowance(
+        address _contract,
+        address _token,
+        uint256 _amount
+    ) internal {
+        if (IERC20(_token).allowance(address(this), _contract) < _amount) {
+            IERC20(_token).safeApprove(_contract, 0);
+            IERC20(_token).safeApprove(_contract, type(uint256).max);
+        }
+    }
+
 }

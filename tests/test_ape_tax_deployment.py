@@ -18,6 +18,7 @@ def test_ape_tax(
     osmProxy,
     apetax_vault,
     amount,
+    ilk,
 ):
     vault = apetax_vault
     daddy = gov
@@ -30,7 +31,7 @@ def test_ape_tax(
         strategist,
         yvault,
         f"StrategyMaker{token.symbol()}",
-        encode_single("bytes32", b"ETH-C"),
+        ilk,
         gemJoinAdapter,
         osmProxy,
         {"from": strategist},

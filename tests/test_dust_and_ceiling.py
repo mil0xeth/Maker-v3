@@ -4,10 +4,10 @@ from brownie import chain, reverts, Wei
 
 
 def test_small_deposit_does_not_generate_debt_under_floor(
-    vault, test_strategy, token, token_whale, yvault, borrow_token, gov
+    vault, test_strategy, token, token_whale, yvault, borrow_token, gov, maker_debt_floor, RELATIVE_APPROX
 ):
     price = test_strategy._getPrice()
-    floor = Wei("4_990 ether")  # assume a price floor of 5k as in ETH-C
+    floor = maker_debt_floor*0.99  # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
     token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
@@ -28,7 +28,7 @@ def test_small_deposit_does_not_generate_debt_under_floor(
     assert borrow_token.balanceOf(test_strategy) == 0
 
     # These are zero because all want is locked in Maker's vault
-    assert test_strategy.balanceOfMakerVault() == token_floor
+    assert pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX) == token_floor
     assert token.balanceOf(test_strategy) == 0
     assert token.balanceOf(vault) == 0
 
@@ -40,10 +40,10 @@ def test_small_deposit_does_not_generate_debt_under_floor(
 
 
 def test_deposit_after_passing_debt_floor_generates_debt(
-    vault, test_strategy, token, token_whale, yvault, borrow_token, gov, RELATIVE_APPROX
+    vault, test_strategy, token, token_whale, yvault, borrow_token, gov, RELATIVE_APPROX, maker_debt_floor
 ):
     price = test_strategy._getPrice()
-    floor = Wei("4_990 ether")  # assume a price floor of 5k as in ETH-C
+    floor = maker_debt_floor*0.99  # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
     token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
@@ -61,10 +61,10 @@ def test_deposit_after_passing_debt_floor_generates_debt(
     assert test_strategy.balanceOfDebt() == 0
     assert yvault.balanceOf(test_strategy) == 0
     assert borrow_token.balanceOf(test_strategy) == 0
-    assert test_strategy.balanceOfMakerVault() == token_floor
+    assert pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX) == token_floor
 
     # Deposit enough want token to go over the dust
-    additional_deposit = Wei("0.5 ether")
+    additional_deposit = maker_debt_floor*0.05
 
     vault.deposit(additional_deposit, {"from": token_whale})
     chain.sleep(1)
@@ -73,21 +73,18 @@ def test_deposit_after_passing_debt_floor_generates_debt(
     # Ensure that we have now taken on debt and deposited into yVault
     assert yvault.balanceOf(test_strategy) > 0
     assert test_strategy.balanceOfDebt() > 0
-    assert test_strategy.balanceOfMakerVault() == token_floor + additional_deposit
+    assert pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX) == token_floor + additional_deposit
 
     # Collateral with no debt should be a high ratio
-    assert (
-        pytest.approx(test_strategy._getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX)
-        == test_strategy.collateralizationRatio()
-    )
+    assert test_strategy._getCurrentMakerVaultRatio()*1.1 >= test_strategy.collateralizationRatio()
 
 
 def test_withdraw_does_not_leave_debt_under_floor(
-    vault, test_strategy, token, token_whale, yvault, dai, dai_whale, gov
+    vault, test_strategy, token, token_whale, yvault, dai, dai_whale, gov, amount
 ):
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(Wei("10 ether"), {"from": token_whale})
+    vault.deposit(amount, {"from": token_whale})
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
 
@@ -100,7 +97,7 @@ def test_withdraw_does_not_leave_debt_under_floor(
     shares = yvault.balanceOf(test_strategy)
 
     # Withdraw large amount so remaining debt is under floor
-    vault.withdraw(Wei("9.9 ether"), {"from": token_whale})
+    vault.withdraw(amount*0.9999, {"from": token_whale})
 
     # Almost all yvDAI shares should have been used to repay the debt
     # and avoid the floor
@@ -111,31 +108,6 @@ def test_withdraw_does_not_leave_debt_under_floor(
     assert (
         test_strategy._getCurrentMakerVaultRatio()
         > test_strategy.collateralizationRatio()
-    )
-
-
-def test_large_deposit_does_not_generate_debt_over_ceiling(
-    vault, test_strategy, token, token_whale, yvault, borrow_token, gov
-):
-    # Deposit to the vault and send funds through the strategy
-    token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(token.balanceOf(token_whale), {"from": token_whale})
-    chain.sleep(1)
-    test_strategy.harvest({"from": gov})
-
-    # Debt ceiling is ~100 million in ETH-C at this time
-    # The whale should deposit >2x that to hit the ceiling
-    assert yvault.balanceOf(test_strategy) > 0
-    assert borrow_token.balanceOf(test_strategy) == 0
-
-    # These are zero because all want is locked in Maker's vault
-    assert token.balanceOf(test_strategy) == 0
-    assert token.balanceOf(vault) == 0
-
-    # Collateral ratio should be larger due to debt being capped by ceiling
-    assert (
-        test_strategy.collateralizationRatio() * 1.01
-        < test_strategy._getCurrentMakerVaultRatio()
     )
 
 
@@ -159,63 +131,12 @@ def test_withdraw_everything_with_vault_in_debt_ceiling(
     assert pytest.approx(token.balanceOf(token_whale), rel=RELATIVE_APPROX) == amount
 
 
-def test_large_want_balance_does_not_generate_debt_over_ceiling(
-    vault, test_strategy, token, token_whale, yvault, borrow_token, gov
-):
-    # Deposit to the vault and send funds through the strategy
-    token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(Wei("250_000 ether"), {"from": token_whale})
 
-    # Send the funds through the strategy to invest
-    chain.sleep(1)
-    test_strategy.harvest({"from": gov})
-
-    # Debt ceiling is ~100 million in ETH-C at this time
-    # The whale should deposit >2x that to hit the ceiling
-    assert yvault.balanceOf(test_strategy) > 0
-    assert borrow_token.balanceOf(test_strategy) == 0
-
-    # These are zero because all want is locked in Maker's vault
-    assert token.balanceOf(test_strategy) == 0
-    assert token.balanceOf(vault) == 0
-
-    # Collateral ratio should be larger due to debt being capped by ceiling
-    assert (
-        test_strategy.collateralizationRatio() * 1.01
-        < test_strategy._getCurrentMakerVaultRatio()
-    )
-
-
-def test_deposit_after_ceiling_reached_should_not_mint_more_dai(
-    vault, test_strategy, token, token_whale, yvault, gov
-):
-    # Deposit to the vault and send funds through the strategy
-    token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(Wei("250_000 ether"), {"from": token_whale})
-
-    # Send the funds through the strategy to invest
-    chain.sleep(1)
-    test_strategy.harvest({"from": gov})
-
-    investment_before = yvault.balanceOf(test_strategy)
-    ratio_before = test_strategy._getCurrentMakerVaultRatio()
-
-    # Deposit to the vault and send funds through the strategy
-    token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(token.balanceOf(token_whale), {"from": token_whale})
-    chain.sleep(1)
-    test_strategy.harvest({"from": gov})
-
-    assert investment_before >= yvault.balanceOf(test_strategy)
-    assert ratio_before < test_strategy._getCurrentMakerVaultRatio()
-
-
-# Fixture 'amount' is included so user has some balance
 def test_withdraw_everything_cancels_entire_debt(
-    vault, test_strategy, token, token_whale, user, amount, yvault, dai, dai_whale, gov,
+    vault, test_strategy, token, token_whale, user, amount, yvault, dai, dai_whale, gov
 ):
-    amount_user = Wei("0.25 ether")
-    amount_whale = Wei("10 ether")
+    amount_user = amount
+    amount_whale = amount*10
 
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
@@ -236,13 +157,13 @@ def test_withdraw_everything_cancels_entire_debt(
 
 
 def test_withdraw_under_floor_without_funds_to_cancel_entire_debt_should_fail(
-    vault, test_strategy, token, token_whale, gov, yvault
+    vault, test_strategy, token, token_whale, gov, yvault, maker_debt_floor
 ):
     # Make sure the strategy will not sell want to repay debt
     test_strategy.setLeaveDebtBehind(False, {"from": gov})
 
     price = test_strategy._getPrice()
-    floor = Wei("5_100 ether")  # assume a price floor of 5k as in ETH-C
+    floor = maker_debt_floor*1.05  # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
     token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
@@ -281,9 +202,8 @@ def test_withdraw_under_floor_without_funds_to_cancel_entire_debt_should_fail(
 
 
 def test_small_withdraw_cancels_corresponding_debt(
-    vault, strategy, token, token_whale, yvault, gov, RELATIVE_APPROX
+    vault, strategy, token, token_whale, yvault, gov, RELATIVE_APPROX, amount
 ):
-    amount = Wei("10 ether")
     to_withdraw_pct = 0.2
 
     # Deposit to the vault and send funds through the strategy
@@ -306,10 +226,10 @@ def test_small_withdraw_cancels_corresponding_debt(
 
 
 def test_tend_trigger_with_debt_under_dust_returns_false(
-    vault, test_strategy, token, token_whale, gov
+    vault, test_strategy, token, token_whale, gov, maker_debt_floor
 ):
     price = test_strategy._getPrice()
-    floor = Wei("4_990 ether")  # assume a price floor of 5k as in ETH-C
+    floor = maker_debt_floor*0.95 # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
     token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
@@ -329,11 +249,11 @@ def test_tend_trigger_with_debt_under_dust_returns_false(
 
 
 def test_tend_trigger_without_more_mintable_dai_returns_false(
-    vault, strategy, token, token_whale, gov
+    vault, strategy, token, token_whale, gov, amount
 ):
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(Wei("250_000 ether"), {"from": token_whale})
+    vault.deposit(amount, {"from": token_whale})
 
     # Send the funds through the strategy to invest
     chain.sleep(1)
@@ -351,11 +271,11 @@ def test_tend_trigger_without_more_mintable_dai_returns_false(
 
 
 def test_tend_trigger_with_funds_in_cdp_but_no_debt_returns_false(
-    vault, strategy, token, token_whale, gov, dai, dai_whale, yvDAI
+    vault, strategy, token, token_whale, gov, dai, dai_whale, yvDAI, amount
 ):
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(Wei("1_000 ether"), {"from": token_whale})
+    vault.deposit(amount, {"from": token_whale})
 
     # Send the funds through the strategy to invest
     chain.sleep(1)

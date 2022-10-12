@@ -34,11 +34,7 @@ def test_profit_under_max_ratio_does_not_revert(
     chain.sleep(1)
     strategy.harvest({"from": gov})
 
-    token.transfer(
-        strategy,
-        vault.strategies(strategy).dict()["totalDebt"] * ((profitLimit - 1) / maxBPS),
-        {"from": token_whale},
-    )
+    token.transfer(strategy, vault.strategies(strategy).dict()["totalDebt"] * ((profitLimit - 10) / maxBPS), {"from": token_whale})
     strategy.harvest({"from": gov})
 
     # If we reach the assert the harvest did not revert

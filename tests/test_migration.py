@@ -16,6 +16,8 @@ def test_migration(
     user,
     cloner,
     RELATIVE_APPROX,
+    gemJoinAdapter,
+    ilk,
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
@@ -33,18 +35,26 @@ def test_migration(
             strategist,
             yvault,
             "name",
-            strategy.ilk(),
-            strategy.gemJoinAdapter(),
+            ilk,
+            gemJoinAdapter,
             strategy.wantToUSDOSMProxy(),
-            strategy.chainlinkWantToETHPriceFeed(),
         ).return_value
     )
 
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
 
     # Allow the new strategy to query the OSM proxy
-    osmProxy = Contract(strategy.wantToUSDOSMProxy())
-    osmProxy.setAuthorized(new_strategy, {"from": gov})
+    try:
+        osmProxy = Contract(strategy.wantToUSDOSMProxy())
+    except: 
+        print("osmProxy not set up")
+    try:
+        osmProxy.setAuthorized(new_strategy, {"from": gov})
+    except: 
+        try:
+            osmProxy.set_user(new_strategy, True, {"from": gov})
+        except: 
+            print("osmProxy not responsive")
 
     orig_cdp_id = strategy.cdpId()
     new_strategy.shiftToCdp(orig_cdp_id, {"from": gov})

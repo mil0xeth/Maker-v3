@@ -1,6 +1,6 @@
 import pytest
 
-from brownie import chain
+from brownie import chain, ZERO_ADDRESS
 
 
 def test_direct_transfer_increments_estimated_total_assets(
@@ -94,13 +94,14 @@ def test_deposit_should_not_increment_profits(vault, strategy, token, token_whal
 
 
 def test_direct_transfer_with_actual_profits(
-    vault, strategy, token, token_whale, borrow_token, borrow_whale, yvault, gov
+    vault, strategy, token, token_whale, borrow_token, borrow_whale, yvault, gov, amount
 ):
+    strategy.setHealthCheck(ZERO_ADDRESS, {"from": gov})
     initialProfit = vault.strategies(strategy).dict()["totalGain"]
     assert initialProfit == 0
 
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(10000 * (10 ** token.decimals()), {"from": token_whale})
+    vault.deposit(amount*2, {"from": token_whale})
 
     chain.sleep(1)
     strategy.harvest({"from": gov})

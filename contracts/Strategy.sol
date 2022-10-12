@@ -10,8 +10,7 @@ import "./libraries/MakerDaiDelegateLib.sol";
 //UniswapV2
 import "../interfaces/swap/ISwap.sol";
 
-//UniswapV3
-import "../interfaces/swap/ISwapRouter.sol";
+import "../interfaces/chainlink/AggregatorInterface.sol";
 
 import "../interfaces/yearn/IBaseFee.sol";
 import "../interfaces/yearn/IOSMedianizer.sol";
@@ -44,20 +43,21 @@ contract Strategy is BaseStrategy {
     // Uniswap router
     ISwap internal constant uniswapRouter = ISwap(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
 
-    // Uniswap V3 router
-    address public constant univ3router = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
-
     // BaseFee Oracle:
-    address public baseFeeOracle = 0xb5e1CAcB567d98faaDB60a1fD4820720141f064F;
+    address internal baseFeeOracle = 0xb5e1CAcB567d98faaDB60a1fD4820720141f064F;
 
     uint256 public creditThreshold; // amount of credit in underlying tokens that will automatically trigger a harvest
     bool internal forceHarvestTriggerOnce; // only set this to true when we want to trigger our keepers to harvest for us
 
     // Token Adapter Module for collateral
-    address public gemJoinAdapter;
+    address internal gemJoinAdapter;
 
     // Maker Oracle Security Module
     IOSMedianizer public wantToUSDOSMProxy;
+
+    // Use Chainlink oracle to obtain latest want/USD price
+    AggregatorInterface public chainlinkWantToUSDPriceFeed;
+    uint256 public chainlinkMultiplier;
 
     // DAI yVault
     IVault public yVault;
@@ -95,6 +95,7 @@ contract Strategy is BaseStrategy {
         bytes32 _ilk,
         address _gemJoin,
         address _wantToUSDOSMProxy
+        
     ) public BaseStrategy(_vault) {
         _initializeThis(
             _yVault,
@@ -173,6 +174,13 @@ contract Strategy is BaseStrategy {
     }
 
     // ----------------- SETTERS & MIGRATION -----------------
+    /*
+    ///@notice Change the contract to call to determine if basefee is acceptable for automated harvesting.
+    function setOSMandChainlink(address _wantToUSDOSMProxy, address _chainlinkWantToUSDPriceFeed, uint256 _chainlinkMultiplier) external onlyGovernance {
+        wantToUSDOSMProxy = IOSMedianizer(_wantToUSDOSMProxy);
+        chainlinkWantToUSDPriceFeed = AggregatorInterface(_chainlinkWantToUSDPriceFeed);
+        chainlinkMultiplier = _chainlinkMultiplier;
+    }
 
     ///@notice Change the contract to call to determine if basefee is acceptable for automated harvesting.
     function setBaseFeeOracle(address _baseFeeOracle) external onlyEmergencyAuthorized
@@ -190,7 +198,7 @@ contract Strategy is BaseStrategy {
     function setCreditThreshold(uint256 _creditThreshold) external onlyEmergencyAuthorized
     {
         creditThreshold = _creditThreshold;
-    }
+    }*/
 
     ///@notice Target collateralization ratio to maintain within bounds by keeper automation
     function setCollateralizationRatio(uint256 _collateralizationRatio) external onlyEmergencyAuthorized
@@ -737,7 +745,7 @@ contract Strategy is BaseStrategy {
     }
 
     // Check if current base fee is below an external oracle target base fee 
-    function isBaseFeeAcceptable() public view returns (bool) {
+    function isBaseFeeAcceptable() internal view returns (bool) {
         return IBaseFee(baseFeeOracle).isCurrentBaseFeeAcceptable();
     }
 
@@ -771,6 +779,12 @@ contract Strategy is BaseStrategy {
             } catch {
                 // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
             }
+        }
+
+        // Chainlink Price:
+        if (address(chainlinkWantToUSDPriceFeed) != address(0)){
+            uint256 chainLinkPrice = uint256(chainlinkWantToUSDPriceFeed.latestAnswer()).mul(chainlinkMultiplier);
+            minPrice = Math.min(minPrice, chainLinkPrice);
         }
         
         // If price is set to 0 then we hope no liquidations are taking place

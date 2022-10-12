@@ -108,7 +108,7 @@ def test_change_debt(chain, gov, token, vault, strategy, user, amount, RELATIVE_
 
 
 def test_sweep(
-    gov, vault, strategy, token, user, amount, weth, weth_amount, yvDAI, dai
+    gov, vault, strategy, token, user, amount, weth, yvDAI, dai
 ):
     # Strategy want token doesn't work
     token.transfer(strategy, amount, {"from": user})

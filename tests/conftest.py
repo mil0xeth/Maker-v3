@@ -56,6 +56,19 @@ apetax_vault_address = {
     "stETH": ZERO_ADDRESS,
 }
 
+production_vault_address = {
+    "YFI": "0xdb25cA703181E7484a155DD612b06f57E12Be5F0",
+    "WETH": "0xa258C4606Ca8206D8aA700cE2143D7db854D168c",
+    "stETH": ZERO_ADDRESS,
+}
+
+maker_floor = {
+    "YFI": 15000e18,
+    "WETH": 5000e18,
+    "stETH": 15000e18,
+}
+
+
 #Maker ilk list: 
 #ilk_list = Contract("0x5a464C28D19848f44199D003BeF5ecc87d090F87")
 #ilk_list.list() --> ilk
@@ -101,6 +114,14 @@ def token_whale(accounts, token):
 def apetax_vault(token):
     yield Contract(apetax_vault_address[token.symbol()])
 
+@pytest.fixture(scope="session")
+def production_vault(token):
+    yield Contract(production_vault_address[token.symbol()])
+
+
+@pytest.fixture(scope="session")
+def maker_debt_floor(token):
+    yield maker_floor[token.symbol()]
 
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
