@@ -6,8 +6,8 @@ This strategy is based on maker-dai-delegate from monoloco (https://github.com/t
 - ySwaps integration.
 - Automated testing for all maker collateral for want token universality. 
 
-Stages of the strategy to go from v2.1 (current) to v3:
-- First stage (maker v2.2): Deposit YFI into Maker, mint DAI, deposit DAI in yvDAI. With above mentioned keeper automation & harvestTrigger updates + UniswapV3 integration + ySwaps integration.
+Stages of the strategy to go from v2.1 to v3:
+- First stage (maker v2.2 -- current): Deposit YFI into Maker, mint DAI, deposit DAI in yvDAI. With above mentioned keeper automation & harvestTrigger updates + UniswapV3 integration + ySwaps integration.
 - Second stage (maker v2.3): Automated tests to deposit any collateral into Maker, mint DAI, deposit DAI in yvDAI.
 - Third stage (maker v3): Deposit any collateral on Maker, mint DAI and deposit in yvDAI or into universal interface OR leverage any collateral. 
 
