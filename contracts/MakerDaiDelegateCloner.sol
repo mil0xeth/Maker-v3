@@ -16,8 +16,7 @@ contract MakerDaiDelegateCloner {
         string memory _strategyName,
         bytes32 _ilk,
         address _gemJoin,
-        address _wantToUSDOSMProxy,
-        address _chainlinkWantToETHPriceFeed
+        address _wantToUSDOSMProxy
     ) public {
         Strategy _original =
             new Strategy(
@@ -26,8 +25,7 @@ contract MakerDaiDelegateCloner {
                 _strategyName,
                 _ilk,
                 _gemJoin,
-                _wantToUSDOSMProxy,
-                _chainlinkWantToETHPriceFeed
+                _wantToUSDOSMProxy
             );
         emit Deployed(address(_original));
 
@@ -53,8 +51,7 @@ contract MakerDaiDelegateCloner {
         string memory _strategyName,
         bytes32 _ilk,
         address _gemJoin,
-        address _wantToUSDOSMProxy,
-        address _chainlinkWantToETHPriceFeed
+        address _wantToUSDOSMProxy
     ) external returns (address newStrategy) {
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
         bytes20 addressBytes = bytes20(original);
@@ -79,8 +76,7 @@ contract MakerDaiDelegateCloner {
             _strategyName,
             _ilk,
             _gemJoin,
-            _wantToUSDOSMProxy,
-            _chainlinkWantToETHPriceFeed
+            _wantToUSDOSMProxy
         );
         Strategy(newStrategy).setKeeper(_keeper);
         Strategy(newStrategy).setRewards(_rewards);

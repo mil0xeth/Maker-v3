@@ -47,9 +47,6 @@ def test_set_max_loss_acl(strategy, gov, strategist, management, guardian, user)
     assert strategy.maxLoss() == 11
 
     with reverts("!authorized"):
-        strategy.setMaxLoss(12, {"from": strategist})
-
-    with reverts("!authorized"):
         strategy.setMaxLoss(13, {"from": guardian})
 
     with reverts("!authorized"):
@@ -84,9 +81,6 @@ def test_switch_dex_acl(strategy, gov, strategist, management, guardian, user):
 
     with reverts("!authorized"):
         strategy.switchDex(True, {"from": guardian})
-
-    with reverts("!authorized"):
-        strategy.switchDex(True, {"from": strategist})
 
     strategy.switchDex(True, {"from": management})
     assert strategy.router() == uniswap
@@ -188,32 +182,10 @@ def test_emergency_debt_repayment_acl(
     assert strategy.balanceOfDebt() == 0
 
     with reverts("!authorized"):
-        strategy.emergencyDebtRepayment(0, {"from": strategist})
-
-    with reverts("!authorized"):
         strategy.emergencyDebtRepayment(0, {"from": guardian})
 
     with reverts("!authorized"):
         strategy.emergencyDebtRepayment(0, {"from": user})
-
-
-def test_set_max_acceptable_base_fee_acl(
-    strategy, gov, strategist, management, guardian, user
-):
-    strategy.setMaxAcceptableBaseFee(100 * 1e9, {"from": gov})
-    assert strategy.maxAcceptableBaseFee() == 100 * 1e9
-
-    strategy.setMaxAcceptableBaseFee(200 * 1e9, {"from": strategist})
-    assert strategy.maxAcceptableBaseFee() == 200 * 1e9
-
-    strategy.setMaxAcceptableBaseFee(50 * 1e9, {"from": guardian})
-    assert strategy.maxAcceptableBaseFee() == 50 * 1e9
-
-    strategy.setMaxAcceptableBaseFee(75 * 1e9, {"from": management})
-    assert strategy.maxAcceptableBaseFee() == 75 * 1e9
-
-    with reverts("!authorized"):
-        strategy.setMaxAcceptableBaseFee(150 * 1e9, {"from": user})
 
 
 def test_repay_debt_acl(
@@ -246,9 +218,6 @@ def test_repay_debt_acl(
 
     strategy.repayDebtWithDaiBalance(2, {"from": management})
     assert strategy.balanceOfDebt() == (debt_balance - 3)
-
-    with reverts("!authorized"):
-        strategy.repayDebtWithDaiBalance(3, {"from": strategist})
 
     with reverts("!authorized"):
         strategy.repayDebtWithDaiBalance(4, {"from": guardian})

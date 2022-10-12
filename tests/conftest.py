@@ -1,5 +1,105 @@
 import pytest
-from brownie import config, convert, interface, Contract
+from brownie import config, convert, interface, Contract, ZERO_ADDRESS
+
+
+# TODO: uncomment those tokens you want to test as want
+@pytest.fixture(
+    params=[
+        "YFI",  
+        "WETH"
+        #"stETH", 
+    ],
+    scope="session",
+    autouse=True,
+)
+def token(request):
+    yield Contract(token_addresses[request.param])
+
+token_addresses = {
+    "YFI": "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e", 
+    "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "stETH": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84", 
+}
+
+token_prices = {
+    "YFI": 8_000,
+    "WETH": 1_500,
+}
+
+ilk_bytes = {
+    "YFI": "0x5946492d41000000000000000000000000000000000000000000000000000000",
+    "WETH": "0x4554482d43000000000000000000000000000000000000000000000000000000",
+    "stETH": "0x5753544554482d41000000000000000000000000000000000000000000000000",
+}
+
+gemJoin_adapters = {
+    "YFI": "0x3ff33d9162aD47660083D7DC4bC02Fb231c81677",
+    "WETH": "0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E", # ETH-C
+    "stETH": "0x10CD5fbe1b404B7E19Ef964B63939907bdaf42E2",
+}
+
+osm_proxies = {
+    "YFI": ZERO_ADDRESS,
+    "WETH": "0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1",
+    "stETH": ZERO_ADDRESS,
+}
+
+whale_addresses = {
+    "YFI": "0xf977814e90da44bfa03b6295a0616a897441acec",  #or: 0xF977814e90dA44bFA03b6295A0616a897441aceC
+    "WETH": "0x57757e3d981446d585af0d9ae4d7df6d64647806",
+    "stETH": "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",
+}
+
+apetax_vault_address = {
+    "YFI": "0xdb25cA703181E7484a155DD612b06f57E12Be5F0",
+    "WETH": "0x5120FeaBd5C21883a4696dBCC5D123d6270637E9",
+    "stETH": ZERO_ADDRESS,
+}
+
+#Maker ilk list: 
+#ilk_list = Contract("0x5a464C28D19848f44199D003BeF5ecc87d090F87")
+#ilk_list.list() --> ilk
+#ilk_list.name(ilk) --> name
+#############
+# Obtaining the bytes32 ilk (verify its validity before using)
+# >>> ilk = ""
+# >>> for i in "YFI-A":
+# ...   ilk += hex(ord(i)).replace("0x","")
+# ...
+# >>> ilk += "0"*(64-len(ilk))
+# >>>
+# >>> ilk
+# '5946492d41000000000000000000000000000000000000000000000000000000'
+
+@pytest.fixture 
+def ilk(token):
+    ilk = ilk_bytes[token.symbol()]
+    yield ilk
+
+@pytest.fixture
+def gemJoinAdapter(token):
+    gemJoin = Contract(gemJoin_adapters[token.symbol()])
+    yield gemJoin
+
+@pytest.fixture 
+def osmProxy(token): # Allow the strategy to query the OSM proxy
+    try:
+        osm = Contract(osm_proxies[token.symbol()])
+        yield osm
+    except:
+        yield ZERO_ADDRESS
+
+@pytest.fixture
+def custom_osm(TestCustomOSM, gov):
+    yield TestCustomOSM.deploy({"from": gov})
+
+@pytest.fixture(scope="session", autouse=True)
+def token_whale(accounts, token):
+    yield accounts.at(whale_addresses[token.symbol()], force=True)
+
+@pytest.fixture(scope="session")
+def apetax_vault(token):
+    yield Contract(apetax_vault_address[token.symbol()])
 
 
 @pytest.fixture(autouse=True)
@@ -33,8 +133,8 @@ def guardian(accounts):
 
 
 @pytest.fixture
-def management(accounts):
-    yield accounts[3]
+def management(accounts, strategist):
+    yield strategist
 
 
 @pytest.fixture
@@ -48,33 +148,25 @@ def keeper(accounts):
 
 
 @pytest.fixture
-def token():
-    token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # WETH
-    yield Contract(token_address)
-
-
-@pytest.fixture
-def token_whale(accounts):
-    yield accounts.at(
-        "0x030bA81f1c18d280636F32af80b9AAd02Cf0854e", force=True
-    )  # AAVE aWETH
-
-
-@pytest.fixture
-def weth_whale(accounts):
-    yield accounts.at("0xC1AAE9d18bBe386B102435a8632C8063d31e747C", force=True)
-
-
-@pytest.fixture
 def dai():
     dai_address = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
     yield Contract(dai_address)
 
 
 @pytest.fixture
+def weth():
+    address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    yield Contract(address)
+
+
+@pytest.fixture
 def dai_whale(accounts):
     yield accounts.at("0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643", force=True)
 
+
+@pytest.fixture
+def weth_whale(accounts):
+    yield accounts.at("0x57757e3d981446d585af0d9ae4d7df6d64647806", force=True)
 
 @pytest.fixture
 def borrow_token(dai):
@@ -92,15 +184,6 @@ def yvault(yvDAI):
 
 
 @pytest.fixture
-def price_oracle_eth():
-    # WILL NOT BE USED FOR ETH
-    chainlink_oracle = interface.AggregatorInterface(
-        "0x7c5d4F8345e66f68099581Db340cd65B078C41f4"
-    )
-    yield chainlink_oracle
-
-
-@pytest.fixture
 def yvDAI():
     vault_address = "0xdA816459F1AB5631232FE5e97a05BBBb94970c95"
     yield Contract(vault_address)
@@ -112,27 +195,25 @@ def router():
     yield sushiswap_router
 
 
-@pytest.fixture
-def amount(accounts, token, user):
-    amount = 10 * 10 ** token.decimals()
-    # In order to get some funds for the token you are about to use,
-    # it impersonate an exchange address to use it's funds.
-    reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
-    token.transfer(user, amount, {"from": reserve})
+@pytest.fixture(autouse=True)
+def amount(token, token_whale, user):
+    # this will get the number of tokens (around $1m worth of token)
+    hundredthousanddollars = round(100_000 / token_prices[token.symbol()])
+    amount = hundredthousanddollars * 10 ** token.decimals()
+    # # In order to get some funds for the token you are about to use,
+    # # it impersonate a whale address
+    if amount > token.balanceOf(token_whale):
+        amount = token.balanceOf(token_whale)
+    token.transfer(user, amount, {"from": token_whale})
     yield amount
 
 
-@pytest.fixture
-def weth():
-    token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
-    yield Contract(token_address)
-
-
-@pytest.fixture
-def weth_amount(user, weth):
-    weth_amount = 10 ** weth.decimals()
-    user.transfer(weth, weth_amount)
-    yield weth_amount
+#@pytest.fixture
+#def amount(accounts, token, user, token_whale):
+#    amount = 10 * 10 ** token.decimals()
+#    reserve = token_whale
+#    token.transfer(user, amount, {"from": reserve})
+#    yield amount
 
 
 @pytest.fixture
@@ -154,28 +235,10 @@ def new_dai_yvault(pm, gov, rewards, guardian, management, dai):
     vault.setManagement(management, {"from": gov})
     yield vault
 
-
-@pytest.fixture
-def osmProxy():
-    # Allow the strategy to query the OSM proxy
-    osm = Contract("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")
-    yield osm
-
-
-@pytest.fixture
-def gemJoinAdapter():
-    gemJoin = Contract("0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E")  # ETH-C
-    yield gemJoin
-
-
+    
 @pytest.fixture
 def healthCheck():
     yield Contract("0xDDCea799fF1699e98EDF118e0629A974Df7DF012")
-
-
-@pytest.fixture
-def custom_osm(TestCustomOSM, gov):
-    yield TestCustomOSM.deploy({"from": gov})
 
 
 @pytest.fixture
@@ -184,13 +247,16 @@ def strategy(vault, Strategy, gov, osmProxy, cloner):
     strategy.setLeaveDebtBehind(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
 
-    # set a high acceptable max base fee to avoid changing test behavior
-    strategy.setMaxAcceptableBaseFee(1500 * 1e9, {"from": gov})
-
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
 
     # Allow the strategy to query the OSM proxy
-    osmProxy.setAuthorized(strategy, {"from": gov})
+    try:
+        osmProxy.setAuthorized(strategy, {"from": gov})
+    except: 
+        try:
+            osmProxy.set_user(strategy, True, {"from": gov})
+        except: 
+            print("osmProxy not responsive")
     yield strategy
 
 
@@ -203,29 +269,29 @@ def test_strategy(
     token,
     gemJoinAdapter,
     osmProxy,
-    price_oracle_eth,
     gov,
+    ilk,
 ):
     strategy = strategist.deploy(
         TestStrategy,
         vault,
         yvault,
-        f"StrategyMakerV2{token.symbol()}",
-        "0x4554482d43000000000000000000000000000000000000000000000000000000",
+        f"StrategyMakerV3{token.symbol()}",
+        ilk,
         gemJoinAdapter,
-        osmProxy,
-        price_oracle_eth,
+        osmProxy
     )
     strategy.setLeaveDebtBehind(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
-
-    # set a high acceptable max base fee to avoid changing test behavior
-    strategy.setMaxAcceptableBaseFee(1500 * 1e9, {"from": gov})
-
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
-
     # Allow the strategy to query the OSM proxy
-    osmProxy.setAuthorized(strategy, {"from": gov})
+    try:
+        osmProxy.setAuthorized(strategy, {"from": gov})
+    except: 
+        try:
+            osmProxy.set_user(strategy, True, {"from": gov})
+        except: 
+            print("osmProxy not responsive")
     yield strategy
 
 
@@ -233,16 +299,6 @@ def test_strategy(
 def RELATIVE_APPROX():
     yield 1e-5
 
-
-# Obtaining the bytes32 ilk (verify its validity before using)
-# >>> ilk = ""
-# >>> for i in "YFI-A":
-# ...   ilk += hex(ord(i)).replace("0x","")
-# ...
-# >>> ilk += "0"*(64-len(ilk))
-# >>>
-# >>> ilk
-# '5946492d41000000000000000000000000000000000000000000000000000000'
 @pytest.fixture
 def cloner(
     strategist,
@@ -251,17 +307,16 @@ def cloner(
     token,
     gemJoinAdapter,
     osmProxy,
-    price_oracle_eth,
     MakerDaiDelegateCloner,
+    ilk,
 ):
     cloner = strategist.deploy(
         MakerDaiDelegateCloner,
         vault,
         yvault,
-        f"StrategyMakerV2{token.symbol()}",
-        "0x4554482d43000000000000000000000000000000000000000000000000000000",
+        f"StrategyMakerV3{token.symbol()}",
+        ilk,
         gemJoinAdapter,
         osmProxy,
-        price_oracle_eth,
     )
     yield cloner

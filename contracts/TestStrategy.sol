@@ -14,8 +14,7 @@ contract TestStrategy is Strategy {
         string memory _strategyName,
         bytes32 _ilk,
         address _gemJoin,
-        address _wantToUSDOSMProxy,
-        address _chainlinkWantToETHPriceFeed
+        address _wantToUSDOSMProxy
     )
         public
         Strategy(
@@ -24,8 +23,7 @@ contract TestStrategy is Strategy {
             _strategyName,
             _ilk,
             _gemJoin,
-            _wantToUSDOSMProxy,
-            _chainlinkWantToETHPriceFeed
+            _wantToUSDOSMProxy
         )
     {}
 
