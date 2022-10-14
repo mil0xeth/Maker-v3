@@ -1,6 +1,6 @@
 import pytest
 
-from brownie import Contract, reverts
+from brownie import Contract, reverts, interface
 
 
 def test_migration(
@@ -45,7 +45,7 @@ def test_migration(
 
     # Allow the new strategy to query the OSM proxy
     try:
-        osmProxy = Contract(strategy.wantToUSDOSMProxy())
+        osmProxy = interface.IOSMedianizer(strategy.wantToUSDOSMProxy())
     except: 
         print("osmProxy not set up")
     try:

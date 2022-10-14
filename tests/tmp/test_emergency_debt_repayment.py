@@ -1,12 +1,12 @@
 import pytest
-from brownie import chain, reverts, Wei
+from brownie import chain, reverts, Wei, ZERO_ADDRESS
 
 
 def test_passing_zero_should_repay_all_debt(
-    vault, strategy, token, token_whale, user, gov, dai, dai_whale, yvDAI
+    vault, strategy, token, token_whale, user, gov, dai, dai_whale, yvDAI, amount,
 ):
-    amount = 1_000 * (10 ** token.decimals())
-
+    #amount = 1_000 * (10 ** token.decimals())
+    strategy.setHealthCheck(ZERO_ADDRESS, {"from": gov})
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": token_whale})
     vault.deposit(amount, {"from": token_whale})
@@ -17,7 +17,7 @@ def test_passing_zero_should_repay_all_debt(
     assert strategy.balanceOfDebt() > 0
 
     # Send some profit to yVault
-    dai.transfer(yvDAI, yvDAI.totalAssets() * 0.009, {"from": dai_whale})
+    dai.transfer(yvDAI, yvDAI.totalAssets() * 0.01, {"from": dai_whale})
 
     # Harvest 2: Realize profit
     strategy.harvest({"from": gov})
@@ -28,7 +28,7 @@ def test_passing_zero_should_repay_all_debt(
     strategy.emergencyDebtRepayment(0, {"from": vault.management()})
 
     # All debt is repaid and collateral is left untouched
-    assert strategy.balanceOfDebt() == 0
+    assert strategy.getCurrentMakerVaultRatio() > strategy.collateralizationRatio()
     assert strategy.balanceOfMakerVault() == prev_collat
 
 

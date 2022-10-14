@@ -72,27 +72,23 @@ def test_set_leave_debt_behind_acl(
         strategy.setLeaveDebtBehind(True, {"from": user})
 
 
-def test_switch_dex_acl(strategy, gov, strategist, management, guardian, user):
+def test_set_swap_router_acl(strategy, gov, strategist, management, guardian, user):
     uniswap = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
     sushiswap = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
 
     with reverts("!authorized"):
-        strategy.switchDex(True, {"from": user})
+        strategy.setSwapRouterSelection(0,0,0, {"from": user})
 
     with reverts("!authorized"):
-        strategy.switchDex(True, {"from": guardian})
+        strategy.setSwapRouterSelection(0,0,0, {"from": guardian})
 
-    strategy.switchDex(True, {"from": management})
-    assert strategy.router() == uniswap
+    strategy.setSwapRouterSelection(0,0,0, {"from": management})
 
-    strategy.switchDex(False, {"from": management})
-    assert strategy.router() == sushiswap
+    strategy.setSwapRouterSelection(0,0,0, {"from": management})
 
-    strategy.switchDex(True, {"from": gov})
-    assert strategy.router() == uniswap
+    strategy.setSwapRouterSelection(0,0,0, {"from": gov})
 
-    strategy.switchDex(False, {"from": gov})
-    assert strategy.router() == sushiswap
+    strategy.setSwapRouterSelection(0,0,0, {"from": gov})
 
 
 def test_shift_cdp_acl(strategy, gov, strategist, management, guardian, user):

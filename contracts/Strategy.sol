@@ -7,14 +7,11 @@ import "@openzeppelin/contracts/math/Math.sol";
 import {IERC20,Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "./libraries/MakerDaiDelegateLib.sol";
 
-//UniswapV2
-import "../interfaces/swap/ISwap.sol";
-
-import "../interfaces/chainlink/AggregatorInterface.sol";
-
 import "../interfaces/yearn/IBaseFee.sol";
 import "../interfaces/yearn/IOSMedianizer.sol";
 import "../interfaces/yearn/IVault.sol";
+
+import "../interfaces/ySwaps/ITradeFactory.sol";
 
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
@@ -34,14 +31,13 @@ contract Strategy is BaseStrategy {
     // Maximum loss on withdrawal from yVault
     uint256 internal constant MAX_LOSS_BPS = 10000;
 
-    // Wrapped Ether - Used for swaps routing
-    address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
+    uint256 public swapRouterSelection;
+    uint24 public feeInvestmentTokenToMidUNIV3;
+    uint24 public feeMidToWantUNIV3;
 
-    // SushiSwap router
-    ISwap internal constant sushiswapRouter = ISwap(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
-
-    // Uniswap router
-    ISwap internal constant uniswapRouter = ISwap(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+    //ySwaps:
+    address public tradeFactory;
 
     // BaseFee Oracle:
     address internal baseFeeOracle = 0xb5e1CAcB567d98faaDB60a1fD4820720141f064F;
@@ -55,15 +51,8 @@ contract Strategy is BaseStrategy {
     // Maker Oracle Security Module
     IOSMedianizer public wantToUSDOSMProxy;
 
-    // Use Chainlink oracle to obtain latest want/USD price
-    AggregatorInterface public chainlinkWantToUSDPriceFeed;
-    uint256 public chainlinkMultiplier;
-
     // DAI yVault
     IVault public yVault;
-
-    // Router used for swaps
-    ISwap public router;
 
     // Collateral type
     bytes32 public ilk;
@@ -148,9 +137,6 @@ contract Strategy is BaseStrategy {
         maxReportDelay = 100 days; // time to trigger haresting by keeper no matter what
         creditThreshold = 1e6 * 1e18; //Credit threshold is in want token, and will trigger a harvest if strategy credit is above this amount.
         
-        // Set default router to SushiSwap
-        router = sushiswapRouter;
-
         // Set health check to health.ychad.eth
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012;
 
@@ -174,14 +160,12 @@ contract Strategy is BaseStrategy {
     }
 
     // ----------------- SETTERS & MIGRATION -----------------
-    /*
-    ///@notice Change the contract to call to determine if basefee is acceptable for automated harvesting.
-    function setOSMandChainlink(address _wantToUSDOSMProxy, address _chainlinkWantToUSDPriceFeed, uint256 _chainlinkMultiplier) external onlyGovernance {
+    
+    ///@notice Change OSM Proxy.
+    function setWantToUSDOSMProxy(address _wantToUSDOSMProxy) external onlyGovernance {
         wantToUSDOSMProxy = IOSMedianizer(_wantToUSDOSMProxy);
-        chainlinkWantToUSDPriceFeed = AggregatorInterface(_chainlinkWantToUSDPriceFeed);
-        chainlinkMultiplier = _chainlinkMultiplier;
     }
-
+    /*
     ///@notice Change the contract to call to determine if basefee is acceptable for automated harvesting.
     function setBaseFeeOracle(address _baseFeeOracle) external onlyEmergencyAuthorized
     {
@@ -256,13 +240,11 @@ contract Strategy is BaseStrategy {
         MakerDaiDelegateLib.allowManagingCdp(cdpId, user, allow);
     }
 
-    // Allow switching between Uniswap and SushiSwap
-    function switchDex(bool isUniswap) external onlyVaultManagers {
-        if (isUniswap) {
-            router = uniswapRouter;
-        } else {
-            router = sushiswapRouter;
-        }
+    // Allow switching between Sushi (0), Univ2 (1), Univ3 (2), yswaps (3) -- Mid is the intermediatry token to swap to
+    function setSwapRouterSelection(uint256 _swapRouterSelection, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3) external onlyVaultManagers {
+        swapRouterSelection = _swapRouterSelection;
+        feeInvestmentTokenToMidUNIV3 = _feeInvestmentTokenToMidUNIV3;
+        feeMidToWantUNIV3 = _feeMidToWantUNIV3;
     }
 
     // Allow external debt repayment
@@ -579,7 +561,8 @@ contract Strategy is BaseStrategy {
         uint256 investmentLeftToAcquireInWant = _convertInvestmentTokenToWant(investmentLeftToAcquire);
 
         if (investmentLeftToAcquireInWant <= balanceOfWant()) {
-            _buyInvestmentTokenWithWant(investmentLeftToAcquire);
+            //buy investmentToken with want (investmentLeftToAcquire)
+            _swapKnownOutWantToInvestmentToken(investmentLeftToAcquire);
             _repayDebt(0);
             _freeCollateralAndRepayDai(balanceOfMakerVault(), 0);
         }
@@ -668,11 +651,7 @@ contract Strategy is BaseStrategy {
         uint256 ySharesToWithdraw = _investmentTokenToYShares(profit);
         if (ySharesToWithdraw > 0) {
             yVault.withdraw(ySharesToWithdraw, address(this), maxLoss);
-            _sellAForB(
-                balanceOfInvestmentToken(),
-                address(investmentToken),
-                address(want)
-            );
+            _swapKnownInInvestmentTokenToWant(balanceOfInvestmentToken());
         }
     }
 
@@ -779,14 +758,7 @@ contract Strategy is BaseStrategy {
             } catch {
                 // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
             }
-        }
-
-        // Chainlink Price:
-        if (address(chainlinkWantToUSDPriceFeed) != address(0)){
-            uint256 chainLinkPrice = uint256(chainlinkWantToUSDPriceFeed.latestAnswer()).mul(chainlinkMultiplier);
-            minPrice = Math.min(minPrice, chainLinkPrice);
-        }
-        
+        }        
         // If price is set to 0 then we hope no liquidations are taking place
         // Emergency scenarios can be handled via manual debt repayment or by
         // granting governance access to the CDP
@@ -834,56 +806,44 @@ contract Strategy is BaseStrategy {
         return amount.mul(WAD).div(_getWantTokenPrice());
     }
 
-    function _getTokenOutPath(address _token_in, address _token_out)
-        internal
-        pure
-        returns (address[] memory _path)
-    {
-        bool is_weth =
-            _token_in == address(WETH) || _token_out == address(WETH);
-        _path = new address[](is_weth ? 2 : 3);
-        _path[0] = _token_in;
-
-        if (is_weth) {
-            _path[1] = _token_out;
-        } else {
-            _path[1] = address(WETH);
-            _path[2] = _token_out;
-        }
+    //investmentToken --> want
+    function _swapKnownInInvestmentTokenToWant(uint256 _amountIn) internal {
+        if (_amountIn == 0 || address(investmentToken) == address(want)) {
+            return;
+        }   
+        MakerDaiDelegateLib.swapKnownInInvestmentTokenToWant(swapRouterSelection, _amountIn, address(investmentToken), address(want), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3);     
     }
 
-    function _sellAForB(
-        uint256 _amount,
-        address tokenA,
-        address tokenB
-    ) internal {
-        if (_amount == 0 || tokenA == tokenB) {
+    //want --> investmentToken
+    function _swapKnownOutWantToInvestmentToken(uint256 _amountOut) internal {
+        if (_amountOut == 0 || address(investmentToken) == address(want)) {
             return;
         }
-
-        _checkAllowance(address(router), tokenA, _amount);
-        router.swapExactTokensForTokens(
-            _amount,
-            0,
-            _getTokenOutPath(tokenA, tokenB),
-            address(this),
-            now
-        );
+        MakerDaiDelegateLib.swapKnownOutWantToInvestmentToken(swapRouterSelection, _amountOut, address(want), address(investmentToken), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3);
     }
 
-    function _buyInvestmentTokenWithWant(uint256 _amount) internal {
-        if (_amount == 0 || address(investmentToken) == address(want)) {
-            return;
+    // ----------------- YSWAPS FUNCTIONS ---------------------
+    function setTradeFactory(address _tradeFactory) external onlyGovernance {
+        if (tradeFactory != address(0)) {
+            _removeTradeFactoryPermissions();
         }
+        // approve and set up trade factory
+        _checkAllowance(_tradeFactory, address(yVault), type(uint256).max);
+        _checkAllowance(_tradeFactory, address(investmentToken), type(uint256).max);
+        ITradeFactory tf = ITradeFactory(_tradeFactory);
+        tf.enable(address(yVault), address(want));
+        tf.enable(address(investmentToken), address(want));
+        tradeFactory = _tradeFactory;
+    }
 
-        _checkAllowance(address(router), address(want), _amount);
-        router.swapTokensForExactTokens(
-            _amount,
-            type(uint256).max,
-            _getTokenOutPath(address(want), address(investmentToken)),
-            address(this),
-            now
-        );
+    function removeTradeFactoryPermissions() external onlyEmergencyAuthorized {
+        _removeTradeFactoryPermissions();
+    }
+
+    function _removeTradeFactoryPermissions() internal {
+        IERC20(address(yVault)).safeApprove(tradeFactory, 0);
+        investmentToken.safeApprove(tradeFactory, 0);
+        tradeFactory = address(0);
     }
 
 }

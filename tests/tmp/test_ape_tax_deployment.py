@@ -19,10 +19,12 @@ def test_ape_tax(
     apetax_vault,
     amount,
     ilk,
+    import_swap_router_selection_dict
 ):
     vault = apetax_vault
     daddy = gov
     gov = vault.governance()
+    vault.setDepositLimit(2**256-1, {"from": gov})
 
     clone_tx = cloner.cloneMakerDaiDelegate(
         vault,
@@ -40,7 +42,8 @@ def test_ape_tax(
     cloned_strategy = Contract.from_abi(
         "Strategy", clone_tx.events["Cloned"]["clone"], strategy.abi
     )
-
+    swap_router_selection_dict = import_swap_router_selection_dict
+    cloned_strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], {"from": gov})
     # White-list the strategy in the OSM!
     try:
         osmProxy.setAuthorized(cloned_strategy, {"from": daddy})

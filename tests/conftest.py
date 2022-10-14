@@ -15,6 +15,14 @@ from brownie import config, convert, interface, Contract, ZERO_ADDRESS
 def token(request):
     yield Contract(token_addresses[request.param])
 
+useOSMforYFI = True
+
+#Allow switching between Sushi (0), Univ2 (1), Univ3 (2), yswaps (3) -- Mid is the intermediatry token to swap to in case the want token is not WETH
+swap_router_selection_dict = {
+    "YFI": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 3000},
+    "WETH": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 500}
+}
+
 token_addresses = {
     "YFI": "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e", 
     "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
@@ -39,7 +47,7 @@ gemJoin_adapters = {
 }
 
 osm_proxies = {
-    "YFI": ZERO_ADDRESS,
+    "YFI": ZERO_ADDRESS, #YFI case handled in YFIosmProxy fixture
     "WETH": "0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1",
     "stETH": ZERO_ADDRESS,
 }
@@ -95,16 +103,29 @@ def gemJoinAdapter(token):
     yield gemJoin
 
 @pytest.fixture 
-def osmProxy(token): # Allow the strategy to query the OSM proxy
-    try:
-        osm = Contract(osm_proxies[token.symbol()])
-        yield osm
-    except:
-        yield ZERO_ADDRESS
+def osmProxy(token, YFIosmProxy): # Allow the strategy to query the OSM proxy
+    if (token.symbol() == "YFI" and useOSMforYFI == True):
+        yield YFIosmProxy
+    else:
+        try:
+            osm = Contract(osm_proxies[token.symbol()])
+            yield osm
+        except:
+            yield ZERO_ADDRESS
 
 @pytest.fixture
 def custom_osm(TestCustomOSM, gov):
     yield TestCustomOSM.deploy({"from": gov})
+
+@pytest.fixture
+def YFIwhitelistedOSM():
+    # Allow the strategy to query the OSM proxy
+    osm = Contract("0x208EfCD7aad0b5DD49438E0b6A0f38E951A50E5f")
+    yield osm
+
+@pytest.fixture
+def YFIosmProxy(gov, YFIOSMAdapter):
+    yield YFIOSMAdapter.deploy({"from": gov})
 
 @pytest.fixture(scope="session", autouse=True)
 def token_whale(accounts, token):
@@ -181,6 +202,17 @@ def weth():
 
 
 @pytest.fixture
+def da():
+    address = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+    yield Contract(address)
+
+@pytest.fixture
+def yfi():
+    address = "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e"
+    yield Contract(address)
+
+
+@pytest.fixture
 def dai_whale(accounts):
     yield accounts.at("0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643", force=True)
 
@@ -219,7 +251,7 @@ def router():
 @pytest.fixture(autouse=True)
 def amount(token, token_whale, user):
     # this will get the number of tokens (around $1m worth of token)
-    hundredthousanddollars = round(100_000 / token_prices[token.symbol()])
+    hundredthousanddollars = round(50_000 / token_prices[token.symbol()])
     amount = hundredthousanddollars * 10 ** token.decimals()
     # # In order to get some funds for the token you are about to use,
     # # it impersonate a whale address
@@ -263,14 +295,23 @@ def healthCheck():
 
 
 @pytest.fixture
-def strategy(vault, Strategy, gov, osmProxy, cloner):
+def import_swap_router_selection_dict():
+    yield swap_router_selection_dict
+
+
+@pytest.fixture
+def strategy(vault, Strategy, gov, osmProxy, cloner, YFIwhitelistedOSM, token):
     strategy = Strategy.at(cloner.original())
     strategy.setLeaveDebtBehind(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
-
+    strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], {"from": gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
 
     # Allow the strategy to query the OSM proxy
+    try:
+        YFIwhitelistedOSM.set_user(osmProxy, True, {"from": gov})
+    except:
+        print("osmProxy not responsive")
     try:
         osmProxy.setAuthorized(strategy, {"from": gov})
     except: 
@@ -279,7 +320,6 @@ def strategy(vault, Strategy, gov, osmProxy, cloner):
         except: 
             print("osmProxy not responsive")
     yield strategy
-
 
 @pytest.fixture
 def test_strategy(
@@ -292,6 +332,7 @@ def test_strategy(
     osmProxy,
     gov,
     ilk,
+    YFIwhitelistedOSM
 ):
     strategy = strategist.deploy(
         TestStrategy,
@@ -302,11 +343,16 @@ def test_strategy(
         gemJoinAdapter,
         osmProxy
     )
+    strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], {"from": gov})
     strategy.setLeaveDebtBehind(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     # Allow the strategy to query the OSM proxy
-    try:
+    try: #in case it's YFI token
+        YFIwhitelistedOSM.set_user(osmProxy, True, {"from": gov})
+    except:
+        print("osmProxy not responsive")
+    try: #in case it's not YFI token (e.g. WETH)
         osmProxy.setAuthorized(strategy, {"from": gov})
     except: 
         try:
@@ -341,3 +387,27 @@ def cloner(
         osmProxy,
     )
     yield cloner
+
+
+@pytest.fixture
+def yvault_whale():
+    address = "0x93a62da5a14c80f265dabc077fcee437b1a0efde"
+    yield Contract(address)
+
+@pytest.fixture(scope="module")
+def multicall_swapper(interface):
+    #yield interface.MultiCallOptimizedSwapper("0xB2F65F254Ab636C96fb785cc9B4485cbeD39CDAA")
+    yield Contract("0xB2F65F254Ab636C96fb785cc9B4485cbeD39CDAA")
+
+@pytest.fixture
+def ymechs_safe():
+    yield Contract("0x2C01B4AD51a67E2d8F02208F54dF9aC4c0B778B6")
+
+@pytest.fixture
+def univ3_swapper():
+    address = "0xE592427A0AEce92De3Edee1F18E0157C05861564"
+    yield Contract(address)
+
+@pytest.fixture
+def trade_factory():
+    yield Contract("0x99d8679bE15011dEAD893EB4F5df474a4e6a8b29")

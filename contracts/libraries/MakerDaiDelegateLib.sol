@@ -10,13 +10,22 @@ import "../../interfaces/maker/IMaker.sol";
 
 //UniswapV3
 import "../../interfaces/swap/ISwapRouter.sol";
+//UniswapV2
+import "../../interfaces/swap/ISwap.sol";
 
 library MakerDaiDelegateLib {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     
-    // Uniswap V3 router
+    // Uniswap V3 router:
     address internal constant univ3router = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    //Uniswap V2 router:
+    address internal constant univ2router = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    // SushiSwap router
+    address internal constant sushiswapRouter = 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
+
+    // Wrapped Ether - Used for swaps routing
+    address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     // Units used in Maker contracts
     uint256 internal constant WAD = 10**18;
@@ -365,15 +374,87 @@ library MakerDaiDelegateLib {
         // Adapters will automatically handle the difference of precision
         wad = amt.mul(10**(18 - GemJoinLike(gemJoin).dec()));
     }
+    
+    function _checkAllowance(
+        address _contract,
+        address _token,
+        uint256 _amount
+    ) internal {
+        if (IERC20(_token).allowance(address(this), _contract) < _amount) {
+            IERC20(_token).safeApprove(_contract, 0);
+            IERC20(_token).safeApprove(_contract, type(uint256).max);
+        }
+    }
+
+    function _getTokenOutPath(address _token_in, address _token_out)
+        internal
+        pure
+        returns (address[] memory _path)
+    {
+        bool is_weth = _token_in == WETH || _token_out == WETH;
+        _path = new address[](is_weth ? 2 : 3);
+        _path[0] = _token_in;
+
+        if (is_weth) {
+            _path[1] = _token_out;
+        } else {
+            _path[1] = WETH;
+            _path[2] = _token_out;
+        }
+    }
+
+    //investmentToken --> want
+    function swapKnownInInvestmentTokenToWant(uint256 _swapRouterSelection, uint256 _amountIn, address _investmentToken, address _want, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3) external {
+        address router;
+        // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
+        if (_swapRouterSelection ==  0){ //sushi
+            router = sushiswapRouter;
+        }
+        if (_swapRouterSelection == 1){ //univ2
+            router = univ2router;
+        }
+        if (_swapRouterSelection ==  0 || _swapRouterSelection == 1){ //univ2 & sushi execution
+        _checkAllowance(router, _investmentToken, _amountIn);
+        ISwap(router).swapExactTokensForTokens(_amountIn, 0, _getTokenOutPath(_investmentToken, _want), address(this), now);
+        return;
+        }
+        ///////////////////////// UNISWAPV3:
+        if (_swapRouterSelection == 2){ //univ3
+            _UNIV3swapKnownIn(_amountIn, _investmentToken, WETH, _want, _feeInvestmentTokenToMidUNIV3, _feeMidToWantUNIV3);
+            return;
+        }
+    }
+
+    //want --> investmentToken
+    function swapKnownOutWantToInvestmentToken(uint256 _swapRouterSelection, uint256 _amountOut, address _want, address _investmentToken, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3) external {
+        address router;
+        // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
+        if (_swapRouterSelection ==  0){ //sushi
+            router = sushiswapRouter;
+        }
+        if ( _swapRouterSelection == 1){ //univ2
+            router = univ2router;
+        }
+        if (_swapRouterSelection ==  0 || _swapRouterSelection == 1){ //univ2 & sushi execution
+        _checkAllowance(router, _want, _amountOut);
+        ISwap(router).swapTokensForExactTokens(_amountOut, type(uint256).max, _getTokenOutPath(_want, _investmentToken), address(this), now);
+        return;
+        }
+        ///////////////////////// UNISWAPV3:
+        if (_swapRouterSelection == 2){ //univ3
+            _UNIV3swapKnownOut(_amountOut, _want, WETH, _investmentToken, _feeMidToWantUNIV3, _feeInvestmentTokenToMidUNIV3);
+            return;
+        }
+    }
 
     ////// UNISWAP V3:
-    function swapKnownIn(uint256 _amountIn, address _tokenIn, address _tokenMid, address _tokenOut, uint24 _feeTokenToMid, uint24 _feeMidToOut) external returns (uint256) {
-        _checkAllowance(univ3router, _tokenIn, _amountIn);
+    function _UNIV3swapKnownIn(uint256 _amountIn, address _tokenIn, address _tokenMid, address _tokenOut, uint24 _feeTokenToMid, uint24 _feeMidToOut) internal returns (uint256) {
         if (_tokenIn == _tokenOut || _amountIn == 0) {
             return _amountIn;
         }
+        _checkAllowance(univ3router, _tokenIn, _amountIn);
         if ( _tokenIn == _tokenMid || _tokenMid == _tokenOut ) {
-            require (_feeTokenToMid == _feeMidToOut, "feeTokenToMid != feeMidToOut");
+            require (_feeTokenToMid == _feeMidToOut, "want=WETH, but feeInvestmentTokenToMid != feeMidToWant");
             ISwapRouter.ExactInputSingleParams memory params =
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: _tokenIn,
@@ -398,15 +479,41 @@ library MakerDaiDelegateLib {
         return ISwapRouter(univ3router).exactInput(params);
     }
 
-    function _checkAllowance(
-        address _contract,
-        address _token,
-        uint256 _amount
-    ) internal {
-        if (IERC20(_token).allowance(address(this), _contract) < _amount) {
-            IERC20(_token).safeApprove(_contract, 0);
-            IERC20(_token).safeApprove(_contract, type(uint256).max);
+    function _UNIV3swapKnownOut(uint256 _amountOut, address _tokenIn, address _tokenMid, address _tokenOut, uint24 _feeTokenToMid, uint24 _feeMidToOut) internal returns (uint256) {
+        if (_tokenIn == _tokenOut || _amountOut == 0) {
+            return _amountOut;
         }
+        uint256 _amountInMaximum = type(uint256).max;
+        _checkAllowance(univ3router, _tokenIn, _amountInMaximum);
+        if ( _tokenIn == _tokenMid || _tokenMid == _tokenOut ) {
+            require (_feeTokenToMid == _feeMidToOut, "want=WETH, but feeInvestmentTokenToMid != feeMidToWant");
+            ISwapRouter.ExactOutputSingleParams memory params =
+                ISwapRouter.ExactOutputSingleParams({
+                    tokenIn: _tokenIn,
+                    tokenOut: _tokenOut,
+                    fee: _feeTokenToMid,
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountOut: _amountOut,
+                    amountInMaximum: _amountInMaximum,
+                    sqrtPriceLimitX96: 0
+                });
+            return ISwapRouter(univ3router).exactOutputSingle(params);
+        }
+        ISwapRouter.ExactOutputParams memory params =
+            ISwapRouter.ExactOutputParams({
+                //path: abi.encodePacked(_tokenIn, _feeTokenToMid, _tokenMid, _feeMidToOut, _tokenOut),
+                path: abi.encodePacked(_tokenOut, _feeMidToOut, _tokenMid, _feeTokenToMid, _tokenIn),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountOut: _amountOut,
+                amountInMaximum: _amountInMaximum
+            });
+        return ISwapRouter(univ3router).exactOutput(params);
     }
+
+
+
+
 
 }
