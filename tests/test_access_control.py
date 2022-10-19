@@ -77,18 +77,18 @@ def test_set_swap_router_acl(strategy, gov, strategist, management, guardian, us
     sushiswap = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
 
     with reverts("!authorized"):
-        strategy.setSwapRouterSelection(0,0,0, {"from": user})
+        strategy.setSwapRouterSelection(0,0,0,0, {"from": user})
 
     with reverts("!authorized"):
-        strategy.setSwapRouterSelection(0,0,0, {"from": guardian})
+        strategy.setSwapRouterSelection(0,0,0,0, {"from": guardian})
 
-    strategy.setSwapRouterSelection(0,0,0, {"from": management})
+    strategy.setSwapRouterSelection(0,0,0,0, {"from": management})
 
-    strategy.setSwapRouterSelection(0,0,0, {"from": management})
+    strategy.setSwapRouterSelection(0,0,0,0, {"from": management})
 
-    strategy.setSwapRouterSelection(0,0,0, {"from": gov})
+    strategy.setSwapRouterSelection(0,0,0,0, {"from": gov})
 
-    strategy.setSwapRouterSelection(0,0,0, {"from": gov})
+    strategy.setSwapRouterSelection(0,0,0,0, {"from": gov})
 
 
 def test_shift_cdp_acl(strategy, gov, strategist, management, guardian, user):

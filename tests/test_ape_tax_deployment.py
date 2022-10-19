@@ -43,7 +43,7 @@ def test_ape_tax(
         "Strategy", clone_tx.events["Cloned"]["clone"], strategy.abi
     )
     swap_router_selection_dict = import_swap_router_selection_dict
-    cloned_strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], {"from": gov})
+    cloned_strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], swap_router_selection_dict[token.symbol()]['midTokenChoice'],  {"from": gov})
     # White-list the strategy in the OSM!
     try:
         osmProxy.setAuthorized(cloned_strategy, {"from": daddy})

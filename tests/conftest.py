@@ -19,8 +19,8 @@ useOSMforYFI = True
 
 #Allow switching between Sushi (0), Univ2 (1), Univ3 (2), yswaps (3) -- Mid is the intermediatry token to swap to in case the want token is not WETH
 swap_router_selection_dict = {
-    "YFI": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 3000},
-    "WETH": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 500}
+    "YFI": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 3000, 'midTokenChoice': 0},
+    "WETH": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 500, 'midTokenChoice': 0}
 }
 
 token_addresses = {
@@ -304,7 +304,7 @@ def strategy(vault, Strategy, gov, osmProxy, cloner, YFIwhitelistedOSM, token):
     strategy = Strategy.at(cloner.original())
     strategy.setLeaveDebtBehind(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
-    strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], {"from": gov})
+    strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], swap_router_selection_dict[token.symbol()]['midTokenChoice'], {"from": gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
 
     # Allow the strategy to query the OSM proxy
@@ -343,7 +343,7 @@ def test_strategy(
         gemJoinAdapter,
         osmProxy
     )
-    strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], {"from": gov})
+    strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], swap_router_selection_dict[token.symbol()]['midTokenChoice'], {"from": gov})
     strategy.setLeaveDebtBehind(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})

@@ -27,7 +27,7 @@ def test_prod_weth(
         original_strategy_address = history[-1].events["Deployed"]["original"]
         strategy = Strategy.at(original_strategy_address)
         swap_router_selection_dict = import_swap_router_selection_dict
-        strategy.setSwapRouterSelection(swap_router_selection_dict["WETH"]['swapRouterSelection'], swap_router_selection_dict["WETH"]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict["WETH"]['feeMidToWantUNIV3'], {"from": gov})
+        strategy.setSwapRouterSelection(swap_router_selection_dict["WETH"]['swapRouterSelection'], swap_router_selection_dict["WETH"]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict["WETH"]['feeMidToWantUNIV3'], swap_router_selection_dict["WETH"]['midTokenChoice'], {"from": gov})
         strategy.setHealthCheck(ZERO_ADDRESS, {"from": gov})
         strategy.setDoHealthCheck(False, {"from": gov})
         assert strategy.strategist() == "0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7"

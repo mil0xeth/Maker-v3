@@ -37,7 +37,7 @@ def test_profitable_harvest(
     trade_factory.grantRole(trade_factory.STRATEGY(), strategy.address, {"from": ymechs_safe, "gas_price": "0 gwei"},)
     strategy.setTradeFactory(trade_factory.address, {"from": gov})
     swap_router_selection_dict = import_swap_router_selection_dict
-    strategy.setSwapRouterSelection(3, swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], {"from": gov})
+    strategy.setSwapRouterSelection(3, swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], swap_router_selection_dict[token.symbol()]['midTokenChoice'], {"from": gov})
 
     # Harvest 1: Send funds through the strategy
     chain.sleep(1)

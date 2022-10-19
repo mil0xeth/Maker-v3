@@ -35,12 +35,14 @@ contract Strategy is BaseStrategy {
     uint256 public swapRouterSelection;
     uint24 public feeInvestmentTokenToMidUNIV3;
     uint24 public feeMidToWantUNIV3;
+    // 0 = through WETH, 1 = through USDC, 2 = direct
+    uint24 public midTokenChoice;
 
     //ySwaps:
     address public tradeFactory;
 
     // BaseFee Oracle:
-    address internal baseFeeOracle = 0xb5e1CAcB567d98faaDB60a1fD4820720141f064F;
+    address internal constant baseFeeOracle = 0xb5e1CAcB567d98faaDB60a1fD4820720141f064F;
 
     uint256 public creditThreshold; // amount of credit in underlying tokens that will automatically trigger a harvest
     bool internal forceHarvestTriggerOnce; // only set this to true when we want to trigger our keepers to harvest for us
@@ -55,7 +57,7 @@ contract Strategy is BaseStrategy {
     IVault public yVault;
 
     // Collateral type
-    bytes32 public ilk;
+    bytes32 internal ilk;
 
     // Our vault identifier
     uint256 public cdpId;
@@ -84,7 +86,6 @@ contract Strategy is BaseStrategy {
         bytes32 _ilk,
         address _gemJoin,
         address _wantToUSDOSMProxy
-        
     ) public BaseStrategy(_vault) {
         _initializeThis(
             _yVault,
@@ -165,12 +166,6 @@ contract Strategy is BaseStrategy {
     function setWantToUSDOSMProxy(address _wantToUSDOSMProxy) external onlyGovernance {
         wantToUSDOSMProxy = IOSMedianizer(_wantToUSDOSMProxy);
     }
-
-    ///@notice Change the contract to call to determine if basefee is acceptable for automated harvesting.
-    function setBaseFeeOracle(address _baseFeeOracle) external onlyEmergencyAuthorized
-    {
-        baseFeeOracle = _baseFeeOracle;
-    }
     
     ///@notice Force manual harvest through keepers using KP3R instead of ETH:
     function setForceHarvestTriggerOnce(bool _forceHarvestTriggerOnce) external onlyEmergencyAuthorized
@@ -241,10 +236,11 @@ contract Strategy is BaseStrategy {
     }
 
     // Allow switching between Sushi (0), Univ2 (1), Univ3 (2), yswaps (3) -- Mid is the intermediatry token to swap to
-    function setSwapRouterSelection(uint256 _swapRouterSelection, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3) external onlyVaultManagers {
+    function setSwapRouterSelection(uint256 _swapRouterSelection, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external onlyVaultManagers {
         swapRouterSelection = _swapRouterSelection;
         feeInvestmentTokenToMidUNIV3 = _feeInvestmentTokenToMidUNIV3;
         feeMidToWantUNIV3 = _feeMidToWantUNIV3;
+        midTokenChoice = _midTokenChoice;
     }
 
     // Allow external debt repayment
@@ -811,7 +807,7 @@ contract Strategy is BaseStrategy {
         if (_amountIn == 0 || address(investmentToken) == address(want)) {
             return;
         }   
-        MakerDaiDelegateLib.swapKnownInInvestmentTokenToWant(swapRouterSelection, _amountIn, address(investmentToken), address(want), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3);     
+        MakerDaiDelegateLib.swapKnownInInvestmentTokenToWant(swapRouterSelection, _amountIn, address(investmentToken), address(want), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3, midTokenChoice);     
     }
 
     //want --> investmentToken
@@ -819,7 +815,7 @@ contract Strategy is BaseStrategy {
         if (_amountOut == 0 || address(investmentToken) == address(want)) {
             return;
         }
-        MakerDaiDelegateLib.swapKnownOutWantToInvestmentToken(swapRouterSelection, _amountOut, address(want), address(investmentToken), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3);
+        MakerDaiDelegateLib.swapKnownOutWantToInvestmentToken(swapRouterSelection, _amountOut, address(want), address(investmentToken), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3, midTokenChoice);
     }
 
     // ----------------- YSWAPS FUNCTIONS ---------------------

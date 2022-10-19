@@ -27,6 +27,9 @@ library MakerDaiDelegateLib {
     // Wrapped Ether - Used for swaps routing
     address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
+    // USDC - Used for swaps routing
+    address internal constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+
     // Units used in Maker contracts
     uint256 internal constant WAD = 10**18;
     uint256 internal constant RAY = 10**27;
@@ -404,7 +407,7 @@ library MakerDaiDelegateLib {
     }
 
     //investmentToken --> want
-    function swapKnownInInvestmentTokenToWant(uint256 _swapRouterSelection, uint256 _amountIn, address _investmentToken, address _want, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3) external {
+    function swapKnownInInvestmentTokenToWant(uint256 _swapRouterSelection, uint256 _amountIn, address _investmentToken, address _want, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
         address router;
         // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
         if (_swapRouterSelection ==  0){ //sushi
@@ -420,13 +423,17 @@ library MakerDaiDelegateLib {
         }
         ///////////////////////// UNISWAPV3:
         if (_swapRouterSelection == 2){ //univ3
-            _UNIV3swapKnownIn(_amountIn, _investmentToken, WETH, _want, _feeInvestmentTokenToMidUNIV3, _feeMidToWantUNIV3);
+            address midToken;
+            if (_midTokenChoice == 0){midToken = WETH;}
+            else if (_midTokenChoice == 1){midToken = USDC;}
+            else if (_midTokenChoice == 2){midToken = _want;}
+            _UNIV3swapKnownIn(_amountIn, _investmentToken, midToken, _want, _feeInvestmentTokenToMidUNIV3, _feeMidToWantUNIV3);
             return;
         }
     }
 
     //want --> investmentToken
-    function swapKnownOutWantToInvestmentToken(uint256 _swapRouterSelection, uint256 _amountOut, address _want, address _investmentToken, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3) external {
+    function swapKnownOutWantToInvestmentToken(uint256 _swapRouterSelection, uint256 _amountOut, address _want, address _investmentToken, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
         address router;
         // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
         if (_swapRouterSelection ==  0){ //sushi
@@ -442,7 +449,11 @@ library MakerDaiDelegateLib {
         }
         ///////////////////////// UNISWAPV3:
         if (_swapRouterSelection == 2){ //univ3
-            _UNIV3swapKnownOut(_amountOut, _want, WETH, _investmentToken, _feeMidToWantUNIV3, _feeInvestmentTokenToMidUNIV3);
+            address midToken;
+            if (_midTokenChoice == 0){midToken = WETH;}
+            else if (_midTokenChoice == 1){midToken = USDC;}
+            else if (_midTokenChoice == 2){midToken = _want;}
+            _UNIV3swapKnownOut(_amountOut, _want, midToken, _investmentToken, _feeMidToWantUNIV3, _feeInvestmentTokenToMidUNIV3);
             return;
         }
     }
