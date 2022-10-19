@@ -165,7 +165,7 @@ contract Strategy is BaseStrategy {
     function setWantToUSDOSMProxy(address _wantToUSDOSMProxy) external onlyGovernance {
         wantToUSDOSMProxy = IOSMedianizer(_wantToUSDOSMProxy);
     }
-    /*
+
     ///@notice Change the contract to call to determine if basefee is acceptable for automated harvesting.
     function setBaseFeeOracle(address _baseFeeOracle) external onlyEmergencyAuthorized
     {
@@ -182,7 +182,7 @@ contract Strategy is BaseStrategy {
     function setCreditThreshold(uint256 _creditThreshold) external onlyEmergencyAuthorized
     {
         creditThreshold = _creditThreshold;
-    }*/
+    }
 
     ///@notice Target collateralization ratio to maintain within bounds by keeper automation
     function setCollateralizationRatio(uint256 _collateralizationRatio) external onlyEmergencyAuthorized
