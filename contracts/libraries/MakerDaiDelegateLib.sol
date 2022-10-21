@@ -389,36 +389,46 @@ library MakerDaiDelegateLib {
         }
     }
 
-    function _getTokenOutPath(address _token_in, address _token_out)
+    function _getTokenOutPath(address _token_in, address _token_out, uint24 _midTokenChoice)
         internal
         pure
         returns (address[] memory _path)
     {
-        bool is_weth = _token_in == WETH || _token_out == WETH;
-        _path = new address[](is_weth ? 2 : 3);
-        _path[0] = _token_in;
-
-        if (is_weth) {
+        // 0 = through WETH, 1 = through USDC, 2 = direct
+        if (_midTokenChoice == 1){ //_token_in --> USDC --> _token_out, check first in case we want to swap DAI --> USDC --> WETH or WETH --> USDC --> DAI
+            _path = new address[](3);
+            _path[1] = USDC;
+            _path[2] = _token_out;
+        } 
+        else if (_token_in == WETH || _token_out == WETH) { // _token_in --> WETH or WETH --> _token_out
+            _path = new address[](2);
             _path[1] = _token_out;
-        } else {
+            }
+        else if (_midTokenChoice == 2){ //_token_in --> _token_out (ignoring WETH as intermediate)
+            _path = new address[](2);
+            _path[1] = _token_out;
+        }
+        else { //_token_in --> WETH --> _token_out for 0 or 
+            _path = new address[](3);
             _path[1] = WETH;
             _path[2] = _token_out;
         }
+        _path[0] = _token_in;        
     }
 
     //investmentToken --> want
-    function swapKnownInInvestmentTokenToWant(uint256 _swapRouterSelection, uint256 _amountIn, address _investmentToken, address _want, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
+    function swapKnownInInvestmentTokenToWant(uint24 _swapRouterSelection, uint256 _amountIn, address _investmentToken, address _want, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
         address router;
         // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
         if (_swapRouterSelection ==  0){ //sushi
             router = sushiswapRouter;
         }
-        if (_swapRouterSelection == 1){ //univ2
+        else if (_swapRouterSelection == 1){ //univ2
             router = univ2router;
         }
         if (_swapRouterSelection ==  0 || _swapRouterSelection == 1){ //univ2 & sushi execution
         _checkAllowance(router, _investmentToken, _amountIn);
-        ISwap(router).swapExactTokensForTokens(_amountIn, 0, _getTokenOutPath(_investmentToken, _want), address(this), now);
+        ISwap(router).swapExactTokensForTokens(_amountIn, 0, _getTokenOutPath(_investmentToken, _want, _midTokenChoice), address(this), now);
         return;
         }
         ///////////////////////// UNISWAPV3:
@@ -433,18 +443,18 @@ library MakerDaiDelegateLib {
     }
 
     //want --> investmentToken
-    function swapKnownOutWantToInvestmentToken(uint256 _swapRouterSelection, uint256 _amountOut, address _want, address _investmentToken, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
+    function swapKnownOutWantToInvestmentToken(uint24 _swapRouterSelection, uint256 _amountOut, address _want, address _investmentToken, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
         address router;
         // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
         if (_swapRouterSelection ==  0){ //sushi
             router = sushiswapRouter;
         }
-        if ( _swapRouterSelection == 1){ //univ2
+        else if ( _swapRouterSelection == 1){ //univ2
             router = univ2router;
         }
         if (_swapRouterSelection ==  0 || _swapRouterSelection == 1){ //univ2 & sushi execution
         _checkAllowance(router, _want, _amountOut);
-        ISwap(router).swapTokensForExactTokens(_amountOut, type(uint256).max, _getTokenOutPath(_want, _investmentToken), address(this), now);
+        ISwap(router).swapTokensForExactTokens(_amountOut, type(uint256).max, _getTokenOutPath(_want, _investmentToken, _midTokenChoice), address(this), now);
         return;
         }
         ///////////////////////// UNISWAPV3:

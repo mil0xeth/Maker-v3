@@ -4,7 +4,7 @@ from brownie import chain, ZERO_ADDRESS
 
 
 def test_direct_transfer_increments_estimated_total_assets(
-    strategy, token, token_whale
+    strategy, token, token_whale,
 ):
     initial = strategy.estimatedTotalAssets()
     amount = 10 * (10 ** token.decimals())
@@ -13,13 +13,15 @@ def test_direct_transfer_increments_estimated_total_assets(
 
 
 def test_direct_transfer_increments_profits(
-    vault, strategy, token, token_whale, gov, RELATIVE_APPROX
+    vault, strategy, token, token_whale, gov, RELATIVE_APPROX, amount
 ):
+    strategy.setDoHealthCheck(False, {"from": gov})
+    strategy.setHealthCheck(ZERO_ADDRESS, {"from": gov})
     initialProfit = vault.strategies(strategy).dict()["totalGain"]
     assert initialProfit == 0
 
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(1000 * (10 ** token.decimals()), {"from": token_whale})
+    vault.deposit(amount, {"from": token_whale})
     chain.sleep(1)
     strategy.harvest({"from": gov})
 
@@ -38,10 +40,12 @@ def test_direct_transfer_increments_profits(
 
 
 def test_borrow_token_transfer_sends_to_yvault(
-    vault, strategy, token, token_whale, borrow_token, borrow_whale, gov
+    vault, strategy, token, token_whale, borrow_token, borrow_whale, gov, amount
 ):
+    strategy.setDoHealthCheck(False, {"from": gov})
+    strategy.setHealthCheck(ZERO_ADDRESS, {"from": gov})
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(1000 * (10 ** token.decimals()), {"from": token_whale})
+    vault.deposit(amount, {"from": token_whale})
 
     chain.sleep(1)
     strategy.harvest({"from": gov})
@@ -55,10 +59,12 @@ def test_borrow_token_transfer_sends_to_yvault(
 
 
 def test_borrow_token_transfer_increments_profits(
-    vault, test_strategy, token, token_whale, borrow_token, borrow_whale, gov
+    vault, test_strategy, token, token_whale, borrow_token, borrow_whale, gov, amount
 ):
+    test_strategy.setDoHealthCheck(False, {"from": gov})
+    test_strategy.setHealthCheck(ZERO_ADDRESS, {"from": gov})
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(1000 * (10 ** token.decimals()), {"from": token_whale})
+    vault.deposit(amount, {"from": token_whale})
 
     chain.sleep(1)
     test_strategy.harvest({"from": gov})

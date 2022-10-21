@@ -32,7 +32,7 @@ contract Strategy is BaseStrategy {
     uint256 internal constant MAX_LOSS_BPS = 10000;
 
     // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
-    uint256 public swapRouterSelection;
+    uint24 public swapRouterSelection;
     uint24 public feeInvestmentTokenToMidUNIV3;
     uint24 public feeMidToWantUNIV3;
     // 0 = through WETH, 1 = through USDC, 2 = direct
@@ -236,7 +236,7 @@ contract Strategy is BaseStrategy {
     }
 
     // Allow switching between Sushi (0), Univ2 (1), Univ3 (2), yswaps (3) -- Mid is the intermediatry token to swap to
-    function setSwapRouterSelection(uint256 _swapRouterSelection, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external onlyVaultManagers {
+    function setSwapRouterSelection(uint24 _swapRouterSelection, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external onlyVaultManagers {
         swapRouterSelection = _swapRouterSelection;
         feeInvestmentTokenToMidUNIV3 = _feeInvestmentTokenToMidUNIV3;
         feeMidToWantUNIV3 = _feeMidToWantUNIV3;

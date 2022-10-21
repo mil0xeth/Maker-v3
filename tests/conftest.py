@@ -5,9 +5,10 @@ from brownie import config, convert, interface, Contract, ZERO_ADDRESS
 # TODO: uncomment those tokens you want to test as want
 @pytest.fixture(
     params=[
-        "YFI",  
-        "WETH"
+        #"YFI",  
+        "WETH",
         #"stETH", 
+        "LINK"
     ],
     scope="session",
     autouse=True,
@@ -18,69 +19,82 @@ def token(request):
 useOSMforYFI = True
 
 #Allow switching between Sushi (0), Univ2 (1), Univ3 (2), yswaps (3) -- Mid is the intermediatry token to swap to in case the want token is not WETH
+#midTokenChoice: 0 = through WETH, 1 = through USDC, 2 = direct
 swap_router_selection_dict = {
     "YFI": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 3000, 'midTokenChoice': 0},
-    "WETH": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 500, 'midTokenChoice': 0}
+    "WETH": {'swapRouterSelection': 0, 'feeInvestmentTokenToMidUNIV3': 100, 'feeMidToWantUNIV3': 500, 'midTokenChoice': 0},
+    "LINK": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 3000, 'midTokenChoice': 0}
 }
 
 token_addresses = {
     "YFI": "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e", 
     "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "stETH": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84", 
+    "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
 }
 
 token_prices = {
     "YFI": 8_000,
     "WETH": 1_500,
+    "LINK": 7,
 }
 
 ilk_bytes = {
     "YFI": "0x5946492d41000000000000000000000000000000000000000000000000000000",
     "WETH": "0x4554482d43000000000000000000000000000000000000000000000000000000",
     "stETH": "0x5753544554482d41000000000000000000000000000000000000000000000000",
+    "LINK": "0x4c494e4b2d410000000000000000000000000000000000000000000000000000",
 }
 
 gemJoin_adapters = {
     "YFI": "0x3ff33d9162aD47660083D7DC4bC02Fb231c81677",
     "WETH": "0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E", # ETH-C
     "stETH": "0x10CD5fbe1b404B7E19Ef964B63939907bdaf42E2",
+    "LINK": "0xdFccAf8fDbD2F4805C174f856a317765B49E4a50",
 }
 
 osm_proxies = {
     "YFI": ZERO_ADDRESS, #YFI case handled in YFIosmProxy fixture
     "WETH": "0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1",
     "stETH": ZERO_ADDRESS,
+    "LINK": ZERO_ADDRESS,
 }
 
 whale_addresses = {
     "YFI": "0xf977814e90da44bfa03b6295a0616a897441acec",  #or: 0xF977814e90dA44bFA03b6295A0616a897441aceC
     "WETH": "0x57757e3d981446d585af0d9ae4d7df6d64647806",
     "stETH": "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",
+    "LINK": "0xf977814e90da44bfa03b6295a0616a897441acec",
 }
 
 apetax_vault_address = {
     "YFI": "0xdb25cA703181E7484a155DD612b06f57E12Be5F0",
     "WETH": "0x5120FeaBd5C21883a4696dBCC5D123d6270637E9",
     "stETH": ZERO_ADDRESS,
+    "LINK": "0x671a912C10bba0CFA74Cfc2d6Fba9BA1ed9530B2",
 }
 
 production_vault_address = {
     "YFI": "0xdb25cA703181E7484a155DD612b06f57E12Be5F0",
     "WETH": "0xa258C4606Ca8206D8aA700cE2143D7db854D168c",
     "stETH": ZERO_ADDRESS,
+    "LINK": "0x671a912C10bba0CFA74Cfc2d6Fba9BA1ed9530B2",
 }
 
 maker_floor = {
     "YFI": 15000e18,
     "WETH": 5000e18,
     "stETH": 15000e18,
+    "LINK": 5200e18,
 }
 
 
 #Maker ilk list: 
 #ilk_list = Contract("0x5a464C28D19848f44199D003BeF5ecc87d090F87")
-#ilk_list.list() --> ilk
-#ilk_list.name(ilk) --> name
+#for x in range(0,ilk_list.count()):
+#ilk = ilk_list.get(x)
+#print(f"{x}"+" "+f"{ilk_list.ilkData(ilk)['symbol']}")
+#ilk_list.ilkData(ilk_list.get(15)).dict()
 #############
 # Obtaining the bytes32 ilk (verify its validity before using)
 # >>> ilk = ""

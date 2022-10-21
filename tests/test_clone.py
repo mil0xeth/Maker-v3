@@ -68,6 +68,7 @@ def test_clone(
     osmProxy,
     gov,
     ilk,
+    amount,
 ):
     clone_tx = cloner.cloneMakerDaiDelegate(
         vault,
@@ -95,7 +96,7 @@ def test_clone(
     vault.addStrategy(cloned_strategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
 
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(10 * (10 ** token.decimals()), {"from": token_whale})
+    vault.deposit(amount, {"from": token_whale})
 
     chain.sleep(1)
     cloned_strategy.harvest({"from": gov})
