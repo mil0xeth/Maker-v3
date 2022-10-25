@@ -7,6 +7,7 @@ def test_passing_zero_should_repay_all_debt(
 ):
     #amount = 1_000 * (10 ** token.decimals())
     strategy.setHealthCheck(ZERO_ADDRESS, {"from": gov})
+    strategy.setDoHealthCheck(False, {"from": gov})
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": token_whale})
     vault.deposit(amount, {"from": token_whale})

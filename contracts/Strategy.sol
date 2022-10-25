@@ -31,11 +31,13 @@ contract Strategy is BaseStrategy {
     // Maximum loss on withdrawal from yVault
     uint256 internal constant MAX_LOSS_BPS = 10000;
 
-    // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
+    // 0 = sushi, 1 = univ2, 2 = univ3, 3 & 3+ = yswaps
     uint24 public swapRouterSelection;
+    // fee pools in case of a swapRouterSelection of 2 = univ3 to swap from DAI to midToken (intermediary swap token):
     uint24 public feeInvestmentTokenToMidUNIV3;
+    // fee pools in case of a swapRouterSelection of 2 = univ3 to swap from midToken to want:
     uint24 public feeMidToWantUNIV3;
-    // 0 = through WETH, 1 = through USDC, 2 = direct
+    // 0 = through WETH, 1 = through USDC, 2 = direct swap
     uint24 public midTokenChoice;
 
     //ySwaps:
@@ -180,7 +182,7 @@ contract Strategy is BaseStrategy {
     }
 
     ///@notice Target collateralization ratio to maintain within bounds by keeper automation
-    function setCollateralizationRatio(uint256 _collateralizationRatio) external onlyEmergencyAuthorized
+    function setCollateralizationRatio(uint256 _collateralizationRatio) external onlyVaultManagers
     {
         require(_collateralizationRatio.sub(rebalanceTolerance) > MakerDaiDelegateLib.getLiquidationRatio(ilk).mul(MAX_BPS).div(RAY)); // check if desired collateralization ratio is too low
         collateralizationRatio = _collateralizationRatio;
@@ -189,7 +191,7 @@ contract Strategy is BaseStrategy {
     ///@notice Set Rebalancing bands (collat ratio - tolerance, collat_ratio + tolerance)
     function setRebalanceTolerance(uint256 _rebalanceTolerance)
         external
-        onlyEmergencyAuthorized
+        onlyVaultManagers
     {
         require(collateralizationRatio.sub(_rebalanceTolerance) > MakerDaiDelegateLib.getLiquidationRatio(ilk).mul(MAX_BPS).div(RAY)); // check if desired rebalance tolerance makes allowed ratio too low
         rebalanceTolerance = _rebalanceTolerance;
@@ -204,7 +206,7 @@ contract Strategy is BaseStrategy {
     // If set to true the strategy will never sell want to repay debts
     function setLeaveDebtBehind(bool _leaveDebtBehind)
         external
-        onlyEmergencyAuthorized
+        onlyVaultManagers
     {
         leaveDebtBehind = _leaveDebtBehind;
     }
@@ -235,7 +237,7 @@ contract Strategy is BaseStrategy {
         MakerDaiDelegateLib.allowManagingCdp(cdpId, user, allow);
     }
 
-    // Allow switching between Sushi (0), Univ2 (1), Univ3 (2), yswaps (3) -- Mid is the intermediatry token to swap to
+    ///@notice Allow switching the swapRouter between Sushi (0), Univ2 (1), Univ3 (2), yswaps (3 and 3+). If Univ3 (2) is chosen, the pool fees have to be chosen (100, 500 or 3000) from DAI to midToken and from midToken to Want. MidToken is the intermediatry token to swap to with 0 = WETH, 1 = USDC, 2 = direct swap
     function setSwapRouterSelection(uint24 _swapRouterSelection, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external onlyVaultManagers {
         swapRouterSelection = _swapRouterSelection;
         feeInvestmentTokenToMidUNIV3 = _feeInvestmentTokenToMidUNIV3;

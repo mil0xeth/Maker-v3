@@ -419,7 +419,7 @@ library MakerDaiDelegateLib {
     //investmentToken --> want
     function swapKnownInInvestmentTokenToWant(uint24 _swapRouterSelection, uint256 _amountIn, address _investmentToken, address _want, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
         address router;
-        // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
+        // 0 = sushi, 1 = univ2, 2 = univ3, 3+ = yswaps
         if (_swapRouterSelection ==  0){ //sushi
             router = sushiswapRouter;
         }
@@ -445,7 +445,7 @@ library MakerDaiDelegateLib {
     //want --> investmentToken
     function swapKnownOutWantToInvestmentToken(uint24 _swapRouterSelection, uint256 _amountOut, address _want, address _investmentToken, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
         address router;
-        // 0 = sushi, 1 = univ2, 2 = univ3, 3 = yswaps
+        // 0 = sushi, 1 = univ2, 2 = univ3, 3+ = yswaps
         if (_swapRouterSelection ==  0){ //sushi
             router = sushiswapRouter;
         }
