@@ -19,7 +19,8 @@ def test_ape_tax(
     apetax_vault,
     amount,
     ilk,
-    import_swap_router_selection_dict
+    import_swap_router_selection_dict,
+    chainlink
 ):
     vault = apetax_vault
     daddy = gov
@@ -36,6 +37,7 @@ def test_ape_tax(
         ilk,
         gemJoinAdapter,
         osmProxy,
+        chainlink,
         {"from": strategist},
     )
 

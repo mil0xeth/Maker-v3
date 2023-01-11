@@ -5,7 +5,7 @@ from eth_abi import encode_single
 
 
 def test_prod_weth(
-    weth, dai, strategist, weth_whale, dai_whale, MakerDaiDelegateCloner, Strategy, token, import_swap_router_selection_dict
+    weth, dai, strategist, weth_whale, dai_whale, MakerDaiDelegateCloner, Strategy, token, import_swap_router_selection_dict, 
 ):
     if (token != weth):
         vault = Contract("0xa258C4606Ca8206D8aA700cE2143D7db854D168c")
@@ -22,6 +22,7 @@ def test_prod_weth(
             "0x4554482d43000000000000000000000000000000000000000000000000000000",  # ETH-C
             gemJoinAdapter,
             osmProxy,
+            ZERO_ADDRESS
         )
 
         original_strategy_address = history[-1].events["Deployed"]["original"]
@@ -32,7 +33,6 @@ def test_prod_weth(
         strategy.setDoHealthCheck(False, {"from": gov})
         assert strategy.strategist() == "0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7"
         assert strategy.keeper() == "0x736D7e3c5a6CB2CE3B764300140ABF476F6CFCCF"
-        assert strategy.rewards() == "0xc491599b9A20c3A2F0A85697Ee6D9434EFa9f503"
 
         # White-list the strategy in the OSM!
         osmProxy.setAuthorized(strategy, {"from": gov})
@@ -97,7 +97,7 @@ def test_prod_weth(
 
 
 def test_prod_universal(
-    token, dai, strategist, token_whale, dai_whale, MakerDaiDelegateCloner, Strategy, production_vault, yvDAI, gemJoinAdapter, osmProxy, yfi, ilk, amount, YFIwhitelistedOSM, import_swap_router_selection_dict
+    token, dai, strategist, token_whale, dai_whale, MakerDaiDelegateCloner, Strategy, production_vault, yvDAI, chainlink, gemJoinAdapter, osmProxy, yfi, ilk, amount, YFIwhitelistedOSM, import_swap_router_selection_dict
 ):
     vault = production_vault
     gov = vault.governance()
@@ -111,6 +111,7 @@ def test_prod_universal(
         ilk,
         gemJoinAdapter,
         osmProxy,
+        chainlink
     )
 
     original_strategy_address = history[-1].events["Deployed"]["original"]
@@ -121,7 +122,6 @@ def test_prod_universal(
     strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], swap_router_selection_dict[token.symbol()]['midTokenChoice'], {"from": gov})
     assert strategy.strategist() == "0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7"
     assert strategy.keeper() == "0x736D7e3c5a6CB2CE3B764300140ABF476F6CFCCF"
-    assert strategy.rewards() == "0xc491599b9A20c3A2F0A85697Ee6D9434EFa9f503"
 
     if (token == yfi):
         try: #in case it's YFI token

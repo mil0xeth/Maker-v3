@@ -10,9 +10,7 @@ def test_small_deposit_does_not_generate_debt_under_floor(
     floor = maker_debt_floor*0.99  # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
-    token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
-        10 ** token.decimals()
-    )
+    token_floor = ((test_strategy.collateralizationRatio() * floor / (10 ** token.decimals())) / price) * (10 ** token.decimals())
 
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, token_floor, {"from": token_whale})
@@ -28,15 +26,12 @@ def test_small_deposit_does_not_generate_debt_under_floor(
     assert borrow_token.balanceOf(test_strategy) == 0
 
     # These are zero because all want is locked in Maker's vault
-    assert pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX) == token_floor
+    assert pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX) == token_floor /(10 ** token.decimals()) * 1e18
     assert token.balanceOf(test_strategy) == 0
     assert token.balanceOf(vault) == 0
 
     # Collateral with no debt should be a high ratio
-    assert (
-        test_strategy._getCurrentMakerVaultRatio()
-        > test_strategy.collateralizationRatio()
-    )
+    assert ( test_strategy.getCurrentMakerVaultRatio() > test_strategy.collateralizationRatio())
 
 
 def test_deposit_after_passing_debt_floor_generates_debt(
@@ -46,9 +41,7 @@ def test_deposit_after_passing_debt_floor_generates_debt(
     floor = maker_debt_floor*0.99  # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
-    token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
-        10 ** token.decimals()
-    )
+    token_floor = ((test_strategy.collateralizationRatio() * floor / (10 ** token.decimals())) / price) * (10 ** token.decimals())
 
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
@@ -61,7 +54,7 @@ def test_deposit_after_passing_debt_floor_generates_debt(
     assert test_strategy.balanceOfDebt() == 0
     assert yvault.balanceOf(test_strategy) == 0
     assert borrow_token.balanceOf(test_strategy) == 0
-    assert pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX) == token_floor
+    assert pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX) == token_floor /(10 ** token.decimals()) * 1e18
 
     # Deposit enough want token to go over the dust
     additional_deposit = maker_debt_floor*0.05
@@ -73,10 +66,10 @@ def test_deposit_after_passing_debt_floor_generates_debt(
     # Ensure that we have now taken on debt and deposited into yVault
     assert yvault.balanceOf(test_strategy) > 0
     assert test_strategy.balanceOfDebt() > 0
-    assert pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX) == token_floor + additional_deposit
+    assert pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX) == (token_floor + additional_deposit) /(10 ** token.decimals()) * 1e18
 
     # Collateral with no debt should be a high ratio
-    assert test_strategy._getCurrentMakerVaultRatio()*1.1 >= test_strategy.collateralizationRatio()
+    assert test_strategy.getCurrentMakerVaultRatio()*1.1 >= test_strategy.collateralizationRatio()
 
 
 def test_withdraw_does_not_leave_debt_under_floor(
@@ -106,7 +99,7 @@ def test_withdraw_does_not_leave_debt_under_floor(
     # Because collateral balance is much larger than the debt (currently 0)
     # we expect the current ratio to be above target
     assert (
-        test_strategy._getCurrentMakerVaultRatio()
+        test_strategy.getCurrentMakerVaultRatio()
         > test_strategy.collateralizationRatio()
     )
 
@@ -126,7 +119,7 @@ def test_withdraw_everything_with_vault_in_debt_ceiling(
     vault.withdraw({"from": token_whale})
 
     assert vault.strategies(test_strategy).dict()["totalDebt"] == 0
-    assert test_strategy._getCurrentMakerVaultRatio() == 0
+    assert test_strategy.getCurrentMakerVaultRatio() == 0
     assert yvault.balanceOf(test_strategy) < 1e18  # dust
     assert pytest.approx(token.balanceOf(token_whale), rel=RELATIVE_APPROX) == amount
 
@@ -166,16 +159,12 @@ def test_withdraw_under_floor_without_funds_to_cancel_entire_debt_should_fail(
     floor = maker_debt_floor*1.05  # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
-    token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
-        10 ** token.decimals()
-    )
+    token_floor = ((test_strategy.collateralizationRatio() * floor / (10 ** token.decimals())) / price) * (10 ** token.decimals())
 
     lower_rebalancing_bound = (
         test_strategy.collateralizationRatio() - test_strategy.rebalanceTolerance()
     )
-    min_floor_in_band = (
-        token_floor * lower_rebalancing_bound / test_strategy.collateralizationRatio()
-    )
+    min_floor_in_band = (token_floor * lower_rebalancing_bound / test_strategy.collateralizationRatio())
 
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
@@ -183,7 +172,7 @@ def test_withdraw_under_floor_without_funds_to_cancel_entire_debt_should_fail(
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
 
-    max_withdrawal = token_floor - min_floor_in_band - Wei("0.0001 ether")
+    max_withdrawal = token_floor - min_floor_in_band - Wei("0.0001 ether")*(10 ** token.decimals())/1e18
 
     # Simulate a loss in yvault by sending some shares away
     yvault.transfer(
@@ -232,9 +221,7 @@ def test_tend_trigger_with_debt_under_dust_returns_false(
     floor = maker_debt_floor*0.95 # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
-    token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
-        10 ** token.decimals()
-    )
+    token_floor = ((test_strategy.collateralizationRatio() * floor / (10 ** token.decimals())) / price) * (10 ** token.decimals())
 
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, token_floor, {"from": token_whale})

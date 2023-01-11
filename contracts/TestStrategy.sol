@@ -14,7 +14,8 @@ contract TestStrategy is Strategy {
         string memory _strategyName,
         bytes32 _ilk,
         address _gemJoin,
-        address _wantToUSDOSMProxy
+        address _wantToUSDOSMProxy,
+        address _chainlinkWantToUSDPriceFeed
     )
         public
         Strategy(
@@ -23,7 +24,8 @@ contract TestStrategy is Strategy {
             _strategyName,
             _ilk,
             _gemJoin,
-            _wantToUSDOSMProxy
+            _wantToUSDOSMProxy,
+            _chainlinkWantToUSDPriceFeed
         )
     {}
 
@@ -35,11 +37,7 @@ contract TestStrategy is Strategy {
     }
 
     function _getPrice() public view returns (uint256) {
-        return _getWantTokenPrice();
-    }
-
-    function _getCurrentMakerVaultRatio() public view returns (uint256) {
-        return getCurrentMakerVaultRatio();
+        return _getCollateralPrice();
     }
 
     function freeCollateral(uint256 collateralAmount) public {

@@ -8,6 +8,8 @@ import {SafeERC20,IERC20,Address} from "@openzeppelin/contracts/token/ERC20/Safe
 
 import "../../interfaces/maker/IMaker.sol";
 
+import "../../interfaces/IERC20Metadata.sol";
+
 //UniswapV3
 import "../../interfaces/swap/ISwapRouter.sol";
 //UniswapV2
@@ -138,7 +140,7 @@ library MakerDaiDelegateLib {
             daiJoin.join(urn, daiToRepay);
         }
 
-        uint256 wadC = convertTo18(gemJoin, collateralAmount);
+        uint256 wadC = collateralAmount;
 
         // Paybacks debt to the CDP and unlocks token amount from it
         manager.frob(
@@ -156,7 +158,7 @@ library MakerDaiDelegateLib {
         manager.flux(cdpId, address(this), collateralAmount);
 
         // Exits token amount to the strategy as a token
-        GemJoinLike(gemJoin).exit(address(this), collateralAmount);
+        GemJoinLike(gemJoin).exit(address(this), convertToWantDecimals(gemJoin, collateralAmount));
     }
 
     function debtFloor(bytes32 ilk) public view returns (uint256) {
@@ -377,6 +379,13 @@ library MakerDaiDelegateLib {
         // Adapters will automatically handle the difference of precision
         wad = amt.mul(10**(18 - GemJoinLike(gemJoin).dec()));
     }
+
+    function convertToWantDecimals(address gemJoin, uint256 amt)
+        internal
+        returns (uint256 wad)
+    {
+        wad = amt.div(10**(18 - GemJoinLike(gemJoin).dec()));
+    }
     
     function _checkAllowance(
         address _contract,
@@ -417,7 +426,12 @@ library MakerDaiDelegateLib {
     }
 
     //investmentToken --> want
-    function swapKnownInInvestmentTokenToWant(uint24 _swapRouterSelection, uint256 _amountIn, address _investmentToken, address _want, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
+    function swapKnownInInvestmentTokenToWant(uint24 _swapRouterSelection, uint256 _amountIn, address _investmentToken, address _want, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice, uint256 _slippagePrice) external {
+        uint256 wantDecimals = uint256(IERC20Metadata(_want).decimals());
+        uint256 minAmountOut; //initialization sets it to 0, so if swapslippage defined, minAmountOut = 0
+        if (_slippagePrice != 0 && _amountIn >= 1e18){
+            uint256 minAmountOut = _amountIn.mul(10**wantDecimals).div(_slippagePrice);
+        }
         address router;
         // 0 = sushi, 1 = univ2, 2 = univ3, 3+ = yswaps
         if (_swapRouterSelection ==  0){ //sushi
@@ -428,7 +442,7 @@ library MakerDaiDelegateLib {
         }
         if (_swapRouterSelection ==  0 || _swapRouterSelection == 1){ //univ2 & sushi execution
         _checkAllowance(router, _investmentToken, _amountIn);
-        ISwap(router).swapExactTokensForTokens(_amountIn, 0, _getTokenOutPath(_investmentToken, _want, _midTokenChoice), address(this), now);
+        ISwap(router).swapExactTokensForTokens(_amountIn, minAmountOut, _getTokenOutPath(_investmentToken, _want, _midTokenChoice), address(this), now);
         return;
         }
         ///////////////////////// UNISWAPV3:
@@ -437,13 +451,18 @@ library MakerDaiDelegateLib {
             if (_midTokenChoice == 0){midToken = WETH;}
             else if (_midTokenChoice == 1){midToken = USDC;}
             else if (_midTokenChoice == 2){midToken = _want;}
-            _UNIV3swapKnownIn(_amountIn, _investmentToken, midToken, _want, _feeInvestmentTokenToMidUNIV3, _feeMidToWantUNIV3);
+            _UNIV3swapKnownIn(_amountIn, _investmentToken, midToken, _want, _feeInvestmentTokenToMidUNIV3, _feeMidToWantUNIV3, minAmountOut);
             return;
         }
     }
 
     //want --> investmentToken
-    function swapKnownOutWantToInvestmentToken(uint24 _swapRouterSelection, uint256 _amountOut, address _want, address _investmentToken, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice) external {
+    function swapKnownOutWantToInvestmentToken(uint24 _swapRouterSelection, uint256 _amountOut, address _want, address _investmentToken, uint24 _feeInvestmentTokenToMidUNIV3, uint24 _feeMidToWantUNIV3, uint24 _midTokenChoice, uint256 _slippagePrice) external {
+        uint256 wantDecimals = uint256(IERC20Metadata(_want).decimals());
+        uint256 maxAmountIn = type(uint256).max;
+        if (_slippagePrice != 0 && _amountOut >= 1e18){
+            maxAmountIn = _amountOut.mul(10**wantDecimals).div(_slippagePrice);
+        }
         address router;
         // 0 = sushi, 1 = univ2, 2 = univ3, 3+ = yswaps
         if (_swapRouterSelection ==  0){ //sushi
@@ -454,7 +473,7 @@ library MakerDaiDelegateLib {
         }
         if (_swapRouterSelection ==  0 || _swapRouterSelection == 1){ //univ2 & sushi execution
         _checkAllowance(router, _want, _amountOut);
-        ISwap(router).swapTokensForExactTokens(_amountOut, type(uint256).max, _getTokenOutPath(_want, _investmentToken, _midTokenChoice), address(this), now);
+        ISwap(router).swapTokensForExactTokens(_amountOut, maxAmountIn, _getTokenOutPath(_want, _investmentToken, _midTokenChoice), address(this), now);
         return;
         }
         ///////////////////////// UNISWAPV3:
@@ -463,19 +482,19 @@ library MakerDaiDelegateLib {
             if (_midTokenChoice == 0){midToken = WETH;}
             else if (_midTokenChoice == 1){midToken = USDC;}
             else if (_midTokenChoice == 2){midToken = _want;}
-            _UNIV3swapKnownOut(_amountOut, _want, midToken, _investmentToken, _feeMidToWantUNIV3, _feeInvestmentTokenToMidUNIV3);
+            _UNIV3swapKnownOut(_amountOut, _want, midToken, _investmentToken, _feeMidToWantUNIV3, _feeInvestmentTokenToMidUNIV3, maxAmountIn);
             return;
         }
     }
 
     ////// UNISWAP V3:
-    function _UNIV3swapKnownIn(uint256 _amountIn, address _tokenIn, address _tokenMid, address _tokenOut, uint24 _feeTokenToMid, uint24 _feeMidToOut) internal returns (uint256) {
+    function _UNIV3swapKnownIn(uint256 _amountIn, address _tokenIn, address _tokenMid, address _tokenOut, uint24 _feeTokenToMid, uint24 _feeMidToOut, uint256 _amountOutMinimum) internal returns (uint256) {
         if (_tokenIn == _tokenOut || _amountIn == 0) {
             return _amountIn;
         }
         _checkAllowance(univ3router, _tokenIn, _amountIn);
         if ( _tokenIn == _tokenMid || _tokenMid == _tokenOut ) {
-            require (_feeTokenToMid == _feeMidToOut, "want=WETH, but feeInvestmentTokenToMid != feeMidToWant");
+            require (_feeTokenToMid == _feeMidToOut, "direct swap, but feeInvestmentTokenToMid != feeMidToWant");
             ISwapRouter.ExactInputSingleParams memory params =
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: _tokenIn,
@@ -484,7 +503,7 @@ library MakerDaiDelegateLib {
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: _amountIn,
-                amountOutMinimum: 0,
+                amountOutMinimum: _amountOutMinimum,
                 sqrtPriceLimitX96: 0
             });
             return ISwapRouter(univ3router).exactInputSingle(params);
@@ -495,19 +514,18 @@ library MakerDaiDelegateLib {
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: _amountIn,
-                amountOutMinimum: 0
+                amountOutMinimum: _amountOutMinimum
             });
         return ISwapRouter(univ3router).exactInput(params);
     }
 
-    function _UNIV3swapKnownOut(uint256 _amountOut, address _tokenIn, address _tokenMid, address _tokenOut, uint24 _feeTokenToMid, uint24 _feeMidToOut) internal returns (uint256) {
+    function _UNIV3swapKnownOut(uint256 _amountOut, address _tokenIn, address _tokenMid, address _tokenOut, uint24 _feeTokenToMid, uint24 _feeMidToOut, uint256 _amountInMaximum) internal returns (uint256) {
         if (_tokenIn == _tokenOut || _amountOut == 0) {
             return _amountOut;
         }
-        uint256 _amountInMaximum = type(uint256).max;
         _checkAllowance(univ3router, _tokenIn, _amountInMaximum);
         if ( _tokenIn == _tokenMid || _tokenMid == _tokenOut ) {
-            require (_feeTokenToMid == _feeMidToOut, "want=WETH, but feeInvestmentTokenToMid != feeMidToWant");
+            require (_feeTokenToMid == _feeMidToOut, "direct swap, but feeInvestmentTokenToMid != feeMidToWant");
             ISwapRouter.ExactOutputSingleParams memory params =
                 ISwapRouter.ExactOutputSingleParams({
                     tokenIn: _tokenIn,

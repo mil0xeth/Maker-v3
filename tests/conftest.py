@@ -5,10 +5,14 @@ from brownie import config, convert, interface, Contract, ZERO_ADDRESS
 # TODO: uncomment those tokens you want to test as want
 @pytest.fixture(
     params=[
-        #"YFI",  
+        #"WETH",
+        #"YFI",
+        "WBTC",
+        "YFI",
         "WETH",
-        # "wstETH", 
-        "LINK"
+        #"wstETH",
+        #"LINK",
+
     ],
     scope="session",
     autouse=True,
@@ -24,10 +28,12 @@ useOSMforYFI = True
 #Allow switching between Sushi (0), Univ2 (1), Univ3 (2), yswaps (3) -- Mid is the intermediatry token to swap to in case the want token is not WETH
 #midTokenChoice: 0 = through WETH, 1 = through USDC, 2 = direct
 swap_router_selection_dict = {
-    "YFI": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 3000, 'midTokenChoice': 0},
-    "WETH": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 100, 'feeMidToWantUNIV3': 500, 'midTokenChoice': 1}, #sushi: 0, 100, 500, 0
-    "LINK": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 3000, 'midTokenChoice': 0}
+    "YFI": {'swapRouterSelection': 0, 'feeInvestmentTokenToMidUNIV3': 3000, 'feeMidToWantUNIV3': 3000, 'midTokenChoice': 0},
+    "WETH": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 500, 'midTokenChoice': 0}, #sushi: 0, 100, 500, 0   #univ3 through usdc: 2,100,500,1
+    "LINK": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 3000, 'midTokenChoice': 0},
     "wstETH": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 500, 'midTokenChoice': 0}, #sushi: 0, 100, 500, 0
+    #"WBTC": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 100, 'feeMidToWantUNIV3': 500, 'midTokenChoice': 1},
+    "WBTC": {'swapRouterSelection': 2, 'feeInvestmentTokenToMidUNIV3': 500, 'feeMidToWantUNIV3': 500, 'midTokenChoice': 0},
 }
 
 token_addresses = {
@@ -35,19 +41,23 @@ token_addresses = {
     "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "wstETH": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0", 
     "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+    "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
 }
 
 token_prices = {
-    "YFI": 8_000,
-    "WETH": 1_500,
-    "LINK": 7,
+    "YFI": 5_400,
+    "WETH": 1_300,
+    "LINK": 6,
+    "WBTC": 17_000,
+    "wstETH": 1_357,
 }
 
 ilk_bytes = {
     "YFI": "0x5946492d41000000000000000000000000000000000000000000000000000000",
-    "WETH": "0x4554482d43000000000000000000000000000000000000000000000000000000",
+    "WETH": "0x4554482d43000000000000000000000000000000000000000000000000000000", #ETH-C
     "wstETH": "0x5753544554482d41000000000000000000000000000000000000000000000000",
     "LINK": "0x4c494e4b2d410000000000000000000000000000000000000000000000000000",
+    "WBTC": "0x574254432d430000000000000000000000000000000000000000000000000000", #WBTC-C
 }
 
 gemJoin_adapters = {
@@ -55,6 +65,7 @@ gemJoin_adapters = {
     "WETH": "0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E", # ETH-C
     "wstETH": "0x10CD5fbe1b404B7E19Ef964B63939907bdaf42E2",
     "LINK": "0xdFccAf8fDbD2F4805C174f856a317765B49E4a50",
+    "WBTC": "0x7f62f9592b823331E012D3c5DdF2A7714CfB9de2",
 }
 
 osm_proxies = {
@@ -62,13 +73,31 @@ osm_proxies = {
     "WETH": "0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1",
     "wstETH": ZERO_ADDRESS,
     "LINK": ZERO_ADDRESS,
+    "WBTC": ZERO_ADDRESS,
 }
+
+chainlink_oracles = {
+    "YFI": "0xa027702dbb89fbd58938e4324ac03b58d812b0e1", #YFI case handled in YFIosmProxy fixture
+    "WETH": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
+    "wstETH": ZERO_ADDRESS,
+    "LINK": "0x2c1d072e956affc0d435cb7ac38ef18d24d9127c",
+    "WBTC": "0xf4030086522a5beea4988f8ca5b36dbc97bee88c",
+}
+
+#chainlink_oracles = {
+#    "YFI": ZERO_ADDRESS, #YFI case handled in YFIosmProxy fixture
+#    "WETH": ZERO_ADDRESS,
+#    "wstETH": ZERO_ADDRESS,
+#    "LINK": ZERO_ADDRESS,
+#    "WBTC": ZERO_ADDRESS,
+#}
 
 whale_addresses = {
     "YFI": "0xf977814e90da44bfa03b6295a0616a897441acec",  #or: 0xF977814e90dA44bFA03b6295A0616a897441aceC
     "WETH": "0x57757e3d981446d585af0d9ae4d7df6d64647806",
     "wstETH": "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",
     "LINK": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "WBTC": "0x28c6c06298d514db089934071355e5743bf21d60",
 }
 
 apetax_vault_address = {
@@ -76,6 +105,7 @@ apetax_vault_address = {
     "WETH": "0x5120FeaBd5C21883a4696dBCC5D123d6270637E9",
     "wstETH": ZERO_ADDRESS,
     "LINK": "0x671a912C10bba0CFA74Cfc2d6Fba9BA1ed9530B2",
+    "WBTC": "0xA696a63cc78DfFa1a63E9E50587C197387FF6C7E",
 }
 
 production_vault_address = {
@@ -83,13 +113,15 @@ production_vault_address = {
     "WETH": "0xa258C4606Ca8206D8aA700cE2143D7db854D168c",
     "wstETH": ZERO_ADDRESS,
     "LINK": "0x671a912C10bba0CFA74Cfc2d6Fba9BA1ed9530B2",
+    "WBTC": "0xA696a63cc78DfFa1a63E9E50587C197387FF6C7E",
 }
 #daistats.com --> collateral --> Dust: x*1e18
 maker_floor = {
     "YFI": 15000e18,
     "WETH": 5000e18,
-    "wstETH": 15000e18,
+    "wstETH": 5000e18,
     "LINK": 15000e18,
+    "WBTC": 7500e8,
 }
 
 #Maker ilk list: 
@@ -97,6 +129,7 @@ maker_floor = {
 #for x in range(0,ilk_list.count()):
 #ilk = ilk_list.get(x)
 #print(f"{x}"+" "+f"{ilk_list.ilkData(ilk)['symbol']}")
+#
 #ilk_list.ilkData(ilk_list.get(15)).dict()
 #Find liquidation collateralization ratio:
 #xlip = Contract(ilk_list.ilkData(ilk_list.get(0))["xlip"])
@@ -126,13 +159,22 @@ def gemJoinAdapter(token):
 @pytest.fixture 
 def osmProxy(token, YFIosmProxy): # Allow the strategy to query the OSM proxy
     if (token.symbol() == "YFI" and useOSMforYFI == True):
-        yield YFIosmProxy
+        #yield YFIosmProxy
+        yield Contract("0x08569B52B009F1Cd3C7765f0E3b2e49e139618bC")
     else:
         try:
             osm = Contract(osm_proxies[token.symbol()])
             yield osm
         except:
             yield ZERO_ADDRESS
+
+@pytest.fixture
+def chainlink(token):
+    address = chainlink_oracles[token.symbol()]
+    if address == ZERO_ADDRESS:
+        yield ZERO_ADDRESS
+    else:
+        yield Contract(chainlink_oracles[token.symbol()])
 
 @pytest.fixture
 def custom_osm(TestCustomOSM, gov):
@@ -329,10 +371,10 @@ def strategy(vault, Strategy, gov, osmProxy, cloner, YFIwhitelistedOSM, token):
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
 
     # Allow the strategy to query the OSM proxy
-    try:
-        YFIwhitelistedOSM.set_user(osmProxy, True, {"from": gov})
-    except:
-        print("osmProxy not responsive")
+    #try:
+    #    YFIwhitelistedOSM.set_user(osmProxy, True, {"from": gov})
+    #except:
+    #    print("osmProxy not responsive")
     try:
         osmProxy.setAuthorized(strategy, {"from": gov})
     except: 
@@ -353,7 +395,8 @@ def test_strategy(
     osmProxy,
     gov,
     ilk,
-    YFIwhitelistedOSM
+    YFIwhitelistedOSM,
+    chainlink
 ):
     strategy = strategist.deploy(
         TestStrategy,
@@ -362,17 +405,18 @@ def test_strategy(
         f"StrategyMakerV3{token.symbol()}",
         ilk,
         gemJoinAdapter,
-        osmProxy
+        osmProxy,
+        chainlink
     )
     strategy.setSwapRouterSelection(swap_router_selection_dict[token.symbol()]['swapRouterSelection'], swap_router_selection_dict[token.symbol()]['feeInvestmentTokenToMidUNIV3'], swap_router_selection_dict[token.symbol()]['feeMidToWantUNIV3'], swap_router_selection_dict[token.symbol()]['midTokenChoice'], {"from": gov})
     strategy.setLeaveDebtBehind(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     # Allow the strategy to query the OSM proxy
-    try: #in case it's YFI token
-        YFIwhitelistedOSM.set_user(osmProxy, True, {"from": gov})
-    except:
-        print("osmProxy not responsive")
+    #try: #in case it's YFI token
+    #    YFIwhitelistedOSM.set_user(osmProxy, True, {"from": gov})
+    #except:
+    #    print("osmProxy not responsive")
     try: #in case it's not YFI token (e.g. WETH)
         osmProxy.setAuthorized(strategy, {"from": gov})
     except: 
@@ -397,6 +441,7 @@ def cloner(
     osmProxy,
     MakerDaiDelegateCloner,
     ilk,
+    chainlink
 ):
     cloner = strategist.deploy(
         MakerDaiDelegateCloner,
@@ -406,6 +451,7 @@ def cloner(
         ilk,
         gemJoinAdapter,
         osmProxy,
+        chainlink
     )
     yield cloner
 

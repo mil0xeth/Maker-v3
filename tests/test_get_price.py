@@ -1,9 +1,10 @@
 import pytest
 
-from brownie import interface, reverts, Wei
+from brownie import interface, reverts, Wei, ZERO_ADDRESS
 
 
-def test_osm_reverts_should_use_spot(test_strategy, custom_osm, lib, ilk):
+def test_osm_reverts_should_use_spot(test_strategy, custom_osm, lib, ilk, gov):
+    test_strategy.setChainlinkOracle(ZERO_ADDRESS, {"from": gov})
     test_strategy.setCustomOSM(custom_osm)
     osm = interface.IOSMedianizer(test_strategy.wantToUSDOSMProxy())
 
@@ -23,8 +24,9 @@ def test_osm_reverts_should_use_spot(test_strategy, custom_osm, lib, ilk):
 
 
 def test_current_osm_reverts_should_use_min_future_and_spot(
-    test_strategy, custom_osm, lib, RELATIVE_APPROX, ilk
+    test_strategy, custom_osm, lib, RELATIVE_APPROX, ilk, gov
 ):
+    test_strategy.setChainlinkOracle(ZERO_ADDRESS, {"from": gov})
     test_strategy.setCustomOSM(custom_osm)
     osm = interface.IOSMedianizer(test_strategy.wantToUSDOSMProxy())
 
@@ -47,8 +49,9 @@ def test_current_osm_reverts_should_use_min_future_and_spot(
 
 
 def test_future_osm_reverts_should_use_min_future_and_spot(
-    test_strategy, custom_osm, lib, RELATIVE_APPROX, ilk
+    test_strategy, custom_osm, lib, RELATIVE_APPROX, ilk, gov
 ):
+    test_strategy.setChainlinkOracle(ZERO_ADDRESS, {"from": gov})
     test_strategy.setCustomOSM(custom_osm)
     osm = interface.IOSMedianizer(test_strategy.wantToUSDOSMProxy())
 
@@ -70,8 +73,9 @@ def test_future_osm_reverts_should_use_min_future_and_spot(
 
 
 def test_get_price_should_return_min_price(
-    test_strategy, custom_osm, lib, RELATIVE_APPROX, ilk
+    test_strategy, custom_osm, lib, RELATIVE_APPROX, ilk, gov
 ):
+    test_strategy.setChainlinkOracle(ZERO_ADDRESS, {"from": gov})
     test_strategy.setCustomOSM(custom_osm)
     osm = interface.IOSMedianizer(test_strategy.wantToUSDOSMProxy())
 

@@ -18,6 +18,7 @@ def test_migration(
     RELATIVE_APPROX,
     gemJoinAdapter,
     ilk,
+    chainlink
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
@@ -38,6 +39,7 @@ def test_migration(
             ilk,
             gemJoinAdapter,
             strategy.wantToUSDOSMProxy(),
+            chainlink
         ).return_value
     )
 
@@ -60,7 +62,7 @@ def test_migration(
     new_strategy.shiftToCdp(orig_cdp_id, {"from": gov})
     new_strategy.harvest({"from": gov})
 
-    assert new_strategy.balanceOfMakerVault() == amount
+    assert new_strategy.balanceOfMakerVault() == amount*1e18/(10 ** token.decimals())
     assert (
         pytest.approx(new_strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX)
         == amount

@@ -14,6 +14,7 @@ def test_double_init_should_revert(
     osmProxy,
     gov,
     ilk,
+    chainlink
 ):
     clone_tx = cloner.cloneMakerDaiDelegate(
         vault,
@@ -25,11 +26,10 @@ def test_double_init_should_revert(
         ilk,
         gemJoinAdapter,
         osmProxy,
+        chainlink
     )
 
-    cloned_strategy = Contract.from_abi(
-        "Strategy", clone_tx.events["Cloned"]["clone"], strategy.abi
-    )
+    cloned_strategy = Contract.from_abi("Strategy", clone_tx.events["Cloned"]["clone"], strategy.abi)
 
     with reverts():
         strategy.initialize(
@@ -39,6 +39,7 @@ def test_double_init_should_revert(
             ilk,
             gemJoinAdapter,
             osmProxy,
+            chainlink,
             {"from": gov},
         )
 
@@ -50,6 +51,7 @@ def test_double_init_should_revert(
             ilk,
             gemJoinAdapter,
             osmProxy,
+            chainlink,
             {"from": gov},
         )
 
@@ -69,6 +71,7 @@ def test_clone(
     gov,
     ilk,
     amount,
+    chainlink
 ):
     clone_tx = cloner.cloneMakerDaiDelegate(
         vault,
@@ -80,6 +83,7 @@ def test_clone(
         ilk,
         gemJoinAdapter,
         osmProxy,
+        chainlink
     )
 
     cloned_strategy = Contract.from_abi(
@@ -116,7 +120,7 @@ def test_clone(
     assert vault.strategies(cloned_strategy).dict()["totalLoss"] == 0
 
 
-def test_clone_of_clone(strategy, cloner, yvault, strategist, token, osmProxy):
+def test_clone_of_clone(strategy, cloner, yvault, strategist, token, osmProxy, chainlink):
     # Do not have OSM proxy for UNI - passing YFI's to test
     gemJoinUNI = Contract("0x3BC3A58b4FC1CbE7e98bB4aB7c99535e8bA9b8F1")
     token = Contract("0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984")
@@ -134,6 +138,7 @@ def test_clone_of_clone(strategy, cloner, yvault, strategist, token, osmProxy):
         "0x554e492d41000000000000000000000000000000000000000000000000000000",
         gemJoinUNI,
         osmProxy,
+        chainlink
     )
 
     cloned_strategy = Contract.from_abi(

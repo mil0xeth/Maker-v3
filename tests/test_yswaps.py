@@ -53,6 +53,8 @@ def test_profitable_harvest(
     token_in = yvault_token
     token_out = token
 
+    trade_factory.enable(yvault_token, token, {"from": strategy})
+
     print(f"Executing trade...")
     receiver = strategy.address
     asyncTradeExecutionDetails = [strategy, token_in, token_out, amount_in, 1]

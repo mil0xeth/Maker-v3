@@ -4,44 +4,16 @@ pragma experimental ABIEncoderV2;
 
 import "./Strategy.sol";
 
-contract MakerDaiDelegateCloner {
+contract MakerDaiDelegateClonerExisting {
     address public immutable original;
 
     event Cloned(address indexed clone);
-    event Deployed(address indexed original);
+    event Assimilated(address indexed original);
 
-    constructor(
-        address _vault,
-        address _yVault,
-        string memory _strategyName,
-        bytes32 _ilk,
-        address _gemJoin,
-        address _wantToUSDOSMProxy,
-        address _chainlinkWantToUSDPriceFeed
+    constructor(address _originalStrategy
     ) public {
-        Strategy _original =
-            new Strategy(
-                _vault,
-                _yVault,
-                _strategyName,
-                _ilk,
-                _gemJoin,
-                _wantToUSDOSMProxy,
-                _chainlinkWantToUSDPriceFeed
-            );
-        emit Deployed(address(_original));
-
-        original = address(_original);
-
-        Strategy(_original).setRewards(
-            0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde
-        );
-        Strategy(_original).setKeeper(
-            0x736D7e3c5a6CB2CE3B764300140ABF476F6CFCCF
-        );
-        Strategy(_original).setStrategist(
-            0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7
-        );
+        emit Assimilated(_originalStrategy);
+        original = _originalStrategy;
     }
 
     function cloneMakerDaiDelegate(
@@ -90,6 +62,6 @@ contract MakerDaiDelegateCloner {
     }
 
     function name() external pure returns (string memory) {
-        return "Yearn-MakerDaiDelegateCloner@0.4.3";
+        return "Yearn-Maker-v3-Cloner";
     }
 }

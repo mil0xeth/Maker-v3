@@ -45,7 +45,7 @@ def test_minted_dai_should_match_collateralization_ratio(
         yvDAI.balanceOf(test_strategy) * yvDAI.pricePerShare() / 1e18,
         rel=RELATIVE_APPROX,
     ) == (
-        token_price * amount / test_strategy.collateralizationRatio()  # already in wad
+        token_price * amount / test_strategy.collateralizationRatio() /(10 ** token.decimals())*1e18 # already in wad
     )
 
 
@@ -78,6 +78,4 @@ def test_delegated_assets_pricing(
     dai_balance = yvDAI.balanceOf(test_strategy) * yvDAI.pricePerShare() / 1e18
     token_price = test_strategy._getPrice()
 
-    assert pytest.approx(test_strategy.delegatedAssets(), rel=RELATIVE_APPROX) == (
-        dai_balance / token_price * (10 ** token.decimals())
-    )
+    assert pytest.approx(test_strategy.delegatedAssets(), rel=RELATIVE_APPROX) == ( dai_balance / token_price * (10 ** token.decimals()))

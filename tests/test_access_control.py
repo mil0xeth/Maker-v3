@@ -13,8 +13,8 @@ def test_set_collateralization_ratio_acl(
     strategy.setCollateralizationRatio(202 * 1e18, {"from": management})
     assert strategy.collateralizationRatio() == 202 * 1e18
 
-    strategy.setCollateralizationRatio(203 * 1e18, {"from": guardian})
-    assert strategy.collateralizationRatio() == 203 * 1e18
+    with reverts("!authorized"):
+        strategy.setCollateralizationRatio(203 * 1e18, {"from": guardian})
 
     with reverts("!authorized"):
         strategy.setCollateralizationRatio(200 * 1e18, {"from": user})
@@ -32,25 +32,25 @@ def test_set_rebalance_tolerance_acl(
     strategy.setRebalanceTolerance(3, {"from": management})
     assert strategy.rebalanceTolerance() == 3
 
-    strategy.setRebalanceTolerance(2, {"from": guardian})
-    assert strategy.rebalanceTolerance() == 2
+    with reverts("!authorized"):
+        strategy.setRebalanceTolerance(2, {"from": guardian})
 
     with reverts("!authorized"):
         strategy.setRebalanceTolerance(5, {"from": user})
 
 
 def test_set_max_loss_acl(strategy, gov, strategist, management, guardian, user):
-    strategy.setMaxLoss(10, {"from": gov})
+    strategy.setMaxLossSwapSlippage(10, 500, {"from": gov})
     assert strategy.maxLoss() == 10
 
-    strategy.setMaxLoss(11, {"from": management})
+    strategy.setMaxLossSwapSlippage(11, 500, {"from": management})
     assert strategy.maxLoss() == 11
 
     with reverts("!authorized"):
-        strategy.setMaxLoss(13, {"from": guardian})
+        strategy.setMaxLossSwapSlippage(13, 500, {"from": guardian})
 
     with reverts("!authorized"):
-        strategy.setMaxLoss(14, {"from": user})
+        strategy.setMaxLossSwapSlippage(14, 500, {"from": user})
 
 
 def test_set_leave_debt_behind_acl(
@@ -65,8 +65,8 @@ def test_set_leave_debt_behind_acl(
     strategy.setLeaveDebtBehind(True, {"from": management})
     assert strategy.leaveDebtBehind() == True
 
-    strategy.setLeaveDebtBehind(False, {"from": guardian})
-    assert strategy.leaveDebtBehind() == False
+    with reverts("!authorized"):
+        strategy.setLeaveDebtBehind(False, {"from": guardian})
 
     with reverts("!authorized"):
         strategy.setLeaveDebtBehind(True, {"from": user})

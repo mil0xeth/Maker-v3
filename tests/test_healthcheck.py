@@ -49,14 +49,12 @@ def test_high_loss_causes_healthcheck_revert(
 
     # Send some funds to the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(1 * (10 ** token.decimals()), {"from": token_whale})
+    vault.deposit(10 * (10 ** token.decimals()), {"from": token_whale})
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
 
     # Unlock part of the collateral
-    test_strategy.freeCollateral(
-        test_strategy.balanceOfMakerVault() * (0.5 + ((lossRatio + 1) / maxBPS))
-    )
+    test_strategy.freeCollateral(test_strategy.balanceOfMakerVault() * (0.05 + ((lossRatio + 1) / maxBPS)))
 
     # Simulate loss by transferring away unlocked collateral
     token.transfer(token_whale, token.balanceOf(test_strategy), {"from": test_strategy})
@@ -80,9 +78,7 @@ def test_loss_under_max_ratio_does_not_revert(
     test_strategy.harvest({"from": gov})
 
     # Unlock part of the collateral
-    test_strategy.freeCollateral(
-        test_strategy.balanceOfMakerVault() * (0.5 + ((lossRatio - 1) / maxBPS))
-    )
+    test_strategy.freeCollateral(test_strategy.balanceOfMakerVault() * (((lossRatio - 1) / maxBPS)))
 
     # Simulate loss by transferring away unlocked collateral
     token.transfer(token_whale, token.balanceOf(test_strategy), {"from": test_strategy})

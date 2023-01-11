@@ -11,6 +11,10 @@ import "../interfaces/yearn/IBaseFee.sol";
 import "../interfaces/yearn/IOSMedianizer.sol";
 import "../interfaces/yearn/IVault.sol";
 
+import "../interfaces/chainlink/AggregatorInterface.sol";
+
+import "../interfaces/IERC20Metadata.sol";
+
 import "../interfaces/ySwaps/ITradeFactory.sol";
 
 contract Strategy is BaseStrategy {
@@ -55,11 +59,16 @@ contract Strategy is BaseStrategy {
     // Maker Oracle Security Module
     IOSMedianizer public wantToUSDOSMProxy;
 
+    // Use Chainlink oracle to obtain latest want/USD price
+    AggregatorInterface public chainlinkWantToUSDPriceFeed;
+
     // DAI yVault
     IVault public yVault;
 
     // Collateral type
     bytes32 internal ilk;
+
+    uint256 internal convertWantTo18Decimals;
 
     // Our vault identifier
     uint256 public cdpId;
@@ -69,6 +78,10 @@ contract Strategy is BaseStrategy {
 
     // Allow the collateralization ratio to drift a bit in order to avoid cycles
     uint256 public rebalanceTolerance;
+
+    // Maximum acceptable swap slippage. Default to 5%.
+    uint256 public swapSlippage;
+    uint256 internal constant DENOMINATOR = 100_00;
 
     // Maximum acceptable loss on withdrawal. Default to 0.01%.
     uint256 public maxLoss;
@@ -87,14 +100,16 @@ contract Strategy is BaseStrategy {
         string memory _strategyName,
         bytes32 _ilk,
         address _gemJoin,
-        address _wantToUSDOSMProxy
+        address _wantToUSDOSMProxy,
+        address _chainlinkWantToUSDPriceFeed
     ) public BaseStrategy(_vault) {
         _initializeThis(
             _yVault,
             _strategyName,
             _ilk,
             _gemJoin,
-            _wantToUSDOSMProxy
+            _wantToUSDOSMProxy,
+            _chainlinkWantToUSDPriceFeed
         );
     }
 
@@ -104,7 +119,8 @@ contract Strategy is BaseStrategy {
         string memory _strategyName,
         bytes32 _ilk,
         address _gemJoin,
-        address _wantToUSDOSMProxy
+        address _wantToUSDOSMProxy,
+        address _chainlinkWantToUSDPriceFeed
     ) public {
         // Make sure we only initialize one time
         require(address(yVault) == address(0)); // dev: strategy already initialized
@@ -120,7 +136,8 @@ contract Strategy is BaseStrategy {
             _strategyName,
             _ilk,
             _gemJoin,
-            _wantToUSDOSMProxy
+            _wantToUSDOSMProxy,
+            _chainlinkWantToUSDPriceFeed
         );
     }
 
@@ -129,17 +146,26 @@ contract Strategy is BaseStrategy {
         string memory _strategyName,
         bytes32 _ilk,
         address _gemJoin,
-        address _wantToUSDOSMProxy
+        address _wantToUSDOSMProxy,
+        address _chainlinkWantToUSDPriceFeed
     ) internal {
+        uint256 wantDecimals = uint256(IERC20Metadata(address(want)).decimals());
+        if (wantDecimals < 18){
+            convertWantTo18Decimals = 10**18 / 10**wantDecimals;
+        } else {
+            convertWantTo18Decimals = 1;
+        }
+        require(_yVault != address(0)); //input validation
         yVault = IVault(_yVault);
         strategyName = _strategyName;
         ilk = _ilk;
         gemJoinAdapter = _gemJoin;
         wantToUSDOSMProxy = IOSMedianizer(_wantToUSDOSMProxy);
+        chainlinkWantToUSDPriceFeed = AggregatorInterface(_chainlinkWantToUSDPriceFeed);
         minReportDelay = 30 days; // time to trigger harvesting by keeper depending on gas base fee
         maxReportDelay = 100 days; // time to trigger haresting by keeper no matter what
-        creditThreshold = 1e6 * 1e18; //Credit threshold is in want token, and will trigger a harvest if strategy credit is above this amount.
-        
+        creditThreshold = 1e6 * 1e18/convertWantTo18Decimals; //Credit threshold is in want token, and will trigger a harvest if strategy credit is above this amount.
+
         // Set health check to health.ychad.eth
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012;
 
@@ -157,6 +183,9 @@ contract Strategy is BaseStrategy {
         // If we lose money in yvDAI then we are not OK selling want to repay it
         leaveDebtBehind = true;
 
+        // Define maximum acceptable slippage for swaps to be 5%.
+        swapSlippage = 500;
+
         // Define maximum acceptable loss on withdrawal to be 0.01%.
         maxLoss = 1;
 
@@ -169,6 +198,11 @@ contract Strategy is BaseStrategy {
         wantToUSDOSMProxy = IOSMedianizer(_wantToUSDOSMProxy);
     }
     
+    ///@notice Change Chainlink Oracle.
+    function setChainlinkOracle(address _chainlinkWantToUSDPriceFeed) external onlyGovernance {
+        chainlinkWantToUSDPriceFeed = AggregatorInterface(_chainlinkWantToUSDPriceFeed);
+    }
+
     ///@notice Force manual harvest through keepers using KP3R instead of ETH:
     function setForceHarvestTriggerOnce(bool _forceHarvestTriggerOnce) external onlyEmergencyAuthorized
     {
@@ -197,10 +231,11 @@ contract Strategy is BaseStrategy {
         rebalanceTolerance = _rebalanceTolerance;
     }
 
-    // Max slippage to accept when withdrawing from yVault
-    function setMaxLoss(uint256 _maxLoss) external onlyVaultManagers {
+    // Max slippage to accept when withdrawing from yVault & max swap slippage to accept from swapping
+    function setMaxLossSwapSlippage(uint256 _maxLoss, uint256 _swapSlippage) external onlyVaultManagers {
         require(_maxLoss <= MAX_LOSS_BPS); // dev: invalid value for max loss
         maxLoss = _maxLoss;
+        swapSlippage = _swapSlippage;
     }
 
     // If set to true the strategy will never sell want to repay debts
@@ -281,7 +316,7 @@ contract Strategy is BaseStrategy {
     function estimatedTotalAssets() public view override returns (uint256) {
         return
             balanceOfWant()
-                .add(balanceOfMakerVault())
+                .add(balanceOfMakerVault().div(convertWantTo18Decimals))
                 .add(_convertInvestmentTokenToWant(balanceOfInvestmentToken()))
                 .add(_convertInvestmentTokenToWant(_valueOfInvestment()))
                 .sub(_convertInvestmentTokenToWant(balanceOfDebt()));
@@ -357,10 +392,10 @@ contract Strategy is BaseStrategy {
             return (_amountNeeded, 0);
         }
 
-        // We only need to free the amount of want not readily available
-        uint256 amountToFree = _amountNeeded.sub(balance);
+        // We only need to free the amount of want not readily available. Convert from want decimals to collateral decimals (== always 18 decimals)
+        uint256 amountToFree = _amountNeeded.sub(balance).mul(convertWantTo18Decimals);
 
-        uint256 price = _getWantTokenPrice();
+        uint256 price = _getCollateralPrice();
         uint256 collateralBalance = balanceOfMakerVault();
 
         // We cannot free more than what we have locked
@@ -554,8 +589,7 @@ contract Strategy is BaseStrategy {
     }
 
     function _sellCollateralToRepayRemainingDebtIfNeeded() internal {
-        uint256 currentInvestmentValue = _valueOfInvestment();
-        uint256 investmentLeftToAcquire = balanceOfDebt().sub(currentInvestmentValue);
+        uint256 investmentLeftToAcquire = balanceOfDebt().sub(_valueOfInvestment());
         uint256 investmentLeftToAcquireInWant = _convertInvestmentTokenToWant(investmentLeftToAcquire);
 
         if (investmentLeftToAcquireInWant <= balanceOfWant()) {
@@ -568,9 +602,7 @@ contract Strategy is BaseStrategy {
 
     // Mint the maximum DAI possible for the locked collateral
     function _mintMoreInvestmentToken() internal {
-        uint256 price = _getWantTokenPrice();
-        uint256 amount = balanceOfMakerVault();
-        uint256 daiToMint = amount.mul(price).mul(MAX_BPS).div(collateralizationRatio).div(WAD);
+        uint256 daiToMint = balanceOfMakerVault().mul(_getCollateralPrice()).mul(MAX_BPS).div(collateralizationRatio).div(WAD);
         daiToMint = daiToMint.sub(balanceOfDebt());
         _lockCollateralAndMintDai(0, daiToMint);
     }
@@ -658,8 +690,7 @@ contract Strategy is BaseStrategy {
             return;
         }
         _checkAllowance(gemJoinAdapter, address(want), amount);
-        uint256 price = _getWantTokenPrice();
-        uint256 daiToMint = amount.mul(price).mul(MAX_BPS).div(collateralizationRatio).div(WAD);
+        uint256 daiToMint = amount.mul(_getCollateralPrice()).mul(MAX_BPS).div(collateralizationRatio).div(WAD);
         _lockCollateralAndMintDai(amount, daiToMint);
     }
 
@@ -676,11 +707,9 @@ contract Strategy is BaseStrategy {
             return totalCollateral;
         }
 
-        uint256 price = _getWantTokenPrice();
-
         // Min collateral in want that needs to be locked with the outstanding debt
         // Allow going to the lower rebalancing band
-        uint256 minCollateral = collateralizationRatio.sub(rebalanceTolerance).mul(totalDebt).mul(WAD).div(price).div(MAX_BPS);
+        uint256 minCollateral = collateralizationRatio.sub(rebalanceTolerance).mul(totalDebt).mul(WAD).div(_getCollateralPrice()).div(MAX_BPS);
 
         // If we are under collateralized then it is not safe for us to withdraw anything
         if (minCollateral > totalCollateral) {
@@ -718,7 +747,7 @@ contract Strategy is BaseStrategy {
 
     // Effective collateralization ratio of the vault
     function getCurrentMakerVaultRatio() public view returns (uint256) {
-        return MakerDaiDelegateLib.getPessimisticRatioOfCdpWithExternalPrice(cdpId, ilk, _getWantTokenPrice(), MAX_BPS);
+        return MakerDaiDelegateLib.getPessimisticRatioOfCdpWithExternalPrice(cdpId, ilk, _getCollateralPrice(), MAX_BPS);
     }
 
     // Check if current base fee is below an external oracle target base fee 
@@ -729,9 +758,11 @@ contract Strategy is BaseStrategy {
     // ----------------- INTERNAL CALCS -----------------
 
     // Returns the minimum price available
-    function _getWantTokenPrice() internal view returns (uint256) {
+    function _getCollateralPrice() internal view returns (uint256) {
         // Use price from spotter as base
         uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk);
+
+        //check if OSMProxy is set & take most pessimistic collateral price:
         if (address(wantToUSDOSMProxy) != address(0)){
             // Peek the OSM to get current price
             try wantToUSDOSMProxy.read() returns (
@@ -756,7 +787,14 @@ contract Strategy is BaseStrategy {
             } catch {
                 // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
             }
-        }        
+        }
+        
+        //check if chainlink oracle is set & take most pessimistic collateral price:
+        if (address(chainlinkWantToUSDPriceFeed) != address(0)){
+            // Non-ETH pairs have 8 decimals, so we need to adjust it to 18
+            minPrice = Math.min(minPrice, uint256(chainlinkWantToUSDPriceFeed.latestAnswer()).mul(1e10));
+        }
+
         // If price is set to 0 then we hope no liquidations are taking place
         // Emergency scenarios can be handled via manual debt repayment or by
         // granting governance access to the CDP
@@ -801,15 +839,19 @@ contract Strategy is BaseStrategy {
         view
         returns (uint256)
     {
-        return amount.mul(WAD).div(_getWantTokenPrice());
+        return amount.mul(WAD).div(_getCollateralPrice()).div(convertWantTo18Decimals);
     }
 
     //investmentToken --> want
     function _swapKnownInInvestmentTokenToWant(uint256 _amountIn) internal {
         if (_amountIn == 0 || address(investmentToken) == address(want)) {
             return;
-        }   
-        MakerDaiDelegateLib.swapKnownInInvestmentTokenToWant(swapRouterSelection, _amountIn, address(investmentToken), address(want), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3, midTokenChoice);     
+        }
+        uint256 slippagePrice;
+        if (swapSlippage != 10000){
+            slippagePrice = _getCollateralPrice().mul(DENOMINATOR.add(swapSlippage)).div(DENOMINATOR);
+        }
+        MakerDaiDelegateLib.swapKnownInInvestmentTokenToWant(swapRouterSelection, _amountIn, address(investmentToken), address(want), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3, midTokenChoice, slippagePrice);
     }
 
     //want --> investmentToken
@@ -817,7 +859,11 @@ contract Strategy is BaseStrategy {
         if (_amountOut == 0 || address(investmentToken) == address(want)) {
             return;
         }
-        MakerDaiDelegateLib.swapKnownOutWantToInvestmentToken(swapRouterSelection, _amountOut, address(want), address(investmentToken), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3, midTokenChoice);
+        uint256 slippagePrice;
+        if (swapSlippage != 10000){
+            slippagePrice = _getCollateralPrice().mul(DENOMINATOR.sub(swapSlippage)).div(DENOMINATOR);
+        }
+        MakerDaiDelegateLib.swapKnownOutWantToInvestmentToken(swapRouterSelection, _amountOut, address(want), address(investmentToken), feeInvestmentTokenToMidUNIV3, feeMidToWantUNIV3, midTokenChoice, slippagePrice);
     }
 
     // ----------------- YSWAPS FUNCTIONS ---------------------
@@ -828,9 +874,8 @@ contract Strategy is BaseStrategy {
         // approve and set up trade factory
         _checkAllowance(_tradeFactory, address(yVault), type(uint256).max);
         _checkAllowance(_tradeFactory, address(investmentToken), type(uint256).max);
-        ITradeFactory tf = ITradeFactory(_tradeFactory);
-        tf.enable(address(yVault), address(want));
-        tf.enable(address(investmentToken), address(want));
+        ITradeFactory(_tradeFactory).enable(address(want), address(investmentToken));
+        ITradeFactory(_tradeFactory).enable(address(investmentToken), address(want));
         tradeFactory = _tradeFactory;
     }
 
