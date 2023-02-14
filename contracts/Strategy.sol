@@ -233,7 +233,7 @@ contract Strategy is BaseStrategy {
 
     // Max slippage to accept when withdrawing from yVault & max swap slippage to accept from swapping
     function setMaxLossSwapSlippage(uint256 _maxLoss, uint256 _swapSlippage) external onlyVaultManagers {
-        require(_maxLoss <= MAX_LOSS_BPS); // dev: invalid value for max loss
+        require(_maxLoss <= MAX_LOSS_BPS && _swapSlippage <= MAX_LOSS_BPS); // dev: invalid value for max loss
         maxLoss = _maxLoss;
         swapSlippage = _swapSlippage;
     }
@@ -792,7 +792,10 @@ contract Strategy is BaseStrategy {
         //check if chainlink oracle is set & take most pessimistic collateral price:
         if (address(chainlinkWantToUSDPriceFeed) != address(0)){
             // Non-ETH pairs have 8 decimals, so we need to adjust it to 18
-            minPrice = Math.min(minPrice, uint256(chainlinkWantToUSDPriceFeed.latestAnswer()).mul(1e10));
+            uint256 chainlinkPrice = uint256(chainlinkWantToUSDPriceFeed.latestAnswer()).mul(1e10);
+            if (chainlinkPrice > 0) {
+                minPrice = Math.min(minPrice, chainlinkPrice);
+            }
         }
 
         // If price is set to 0 then we hope no liquidations are taking place

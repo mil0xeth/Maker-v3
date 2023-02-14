@@ -7,10 +7,10 @@ from brownie import config, convert, interface, Contract, ZERO_ADDRESS
     params=[
         #"WETH",
         #"YFI",
+        "wstETH",
         "WBTC",
         "YFI",
         "WETH",
-        #"wstETH",
         #"LINK",
 
     ],
@@ -45,11 +45,11 @@ token_addresses = {
 }
 
 token_prices = {
-    "YFI": 5_400,
-    "WETH": 1_300,
+    "YFI": 6_300,
+    "WETH": 1_550,
     "LINK": 6,
-    "WBTC": 17_000,
-    "wstETH": 1_357,
+    "WBTC": 22_000,
+    "wstETH": 1_700,
 }
 
 ilk_bytes = {
@@ -95,7 +95,7 @@ chainlink_oracles = {
 whale_addresses = {
     "YFI": "0xf977814e90da44bfa03b6295a0616a897441acec",  #or: 0xF977814e90dA44bFA03b6295A0616a897441aceC
     "WETH": "0x57757e3d981446d585af0d9ae4d7df6d64647806",
-    "wstETH": "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",
+    "wstETH": "0x6cE0F913F035ec6195bC3cE885aec4C66E485BC4",
     "LINK": "0xf977814e90da44bfa03b6295a0616a897441acec",
     "WBTC": "0x28c6c06298d514db089934071355e5743bf21d60",
 }
@@ -103,7 +103,7 @@ whale_addresses = {
 apetax_vault_address = {
     "YFI": "0xdb25cA703181E7484a155DD612b06f57E12Be5F0",
     "WETH": "0x5120FeaBd5C21883a4696dBCC5D123d6270637E9",
-    "wstETH": ZERO_ADDRESS,
+    "wstETH": "0xC1f3C276Bf73396C020E8354bcA581846171649d",
     "LINK": "0x671a912C10bba0CFA74Cfc2d6Fba9BA1ed9530B2",
     "WBTC": "0xA696a63cc78DfFa1a63E9E50587C197387FF6C7E",
 }
@@ -111,7 +111,7 @@ apetax_vault_address = {
 production_vault_address = {
     "YFI": "0xdb25cA703181E7484a155DD612b06f57E12Be5F0",
     "WETH": "0xa258C4606Ca8206D8aA700cE2143D7db854D168c",
-    "wstETH": ZERO_ADDRESS,
+    "wstETH": "0xC1f3C276Bf73396C020E8354bcA581846171649d",
     "LINK": "0x671a912C10bba0CFA74Cfc2d6Fba9BA1ed9530B2",
     "WBTC": "0xA696a63cc78DfFa1a63E9E50587C197387FF6C7E",
 }
