@@ -168,7 +168,6 @@ contract Strategy is BaseStrategy {
 
         // Set health check to health.ychad.eth
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012;
-
         cdpId = MakerDaiDelegateLib.openCdp(ilk);
         require(cdpId > 0); // dev: error opening cdp
 
@@ -338,11 +337,18 @@ contract Strategy is BaseStrategy {
 
         uint256 totalAssetsAfterProfit = estimatedTotalAssets();
 
-        _profit = totalAssetsAfterProfit > totalDebt ? totalAssetsAfterProfit.sub(totalDebt) : 0;
+        if (totalAssetsAfterProfit >= totalDebt) {
+            _profit = totalAssetsAfterProfit.sub(totalDebt);
+        } else {
+            _loss = totalDebt.sub(totalAssetsAfterProfit);
+        }
 
-        uint256 _amountFreed;
-        (_amountFreed, _loss) = liquidatePosition(_debtOutstanding.add(_profit));
-        _debtPayment = Math.min(_debtOutstanding, _amountFreed);
+        uint256 toLiquidate = _debtOutstanding.add(_profit);
+        if (toLiquidate > 0) {
+            (uint256 _amountFreed, uint256 _withdrawalLoss) = liquidatePosition(toLiquidate);
+            _debtPayment = Math.min(_debtOutstanding, _amountFreed);
+            _loss = _loss.add(_withdrawalLoss);
+        }
 
         if (_loss > _profit) {
             _loss = _loss.sub(_profit);
@@ -623,7 +629,8 @@ contract Strategy is BaseStrategy {
 
     function _depositInvestmentTokenInYVault() internal {
         uint256 balanceIT = balanceOfInvestmentToken();
-        if (balanceIT > 0) {_checkAllowance(address(yVault), address(investmentToken), balanceIT);
+        if (balanceIT > 0) {
+            _checkAllowance(address(yVault), address(investmentToken), balanceIT);
             yVault.deposit();
         }
     }

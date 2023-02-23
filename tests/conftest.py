@@ -45,11 +45,11 @@ token_addresses = {
 }
 
 token_prices = {
-    "YFI": 6_300,
-    "WETH": 1_550,
-    "LINK": 6,
-    "WBTC": 22_000,
-    "wstETH": 1_700,
+    "YFI": 7_854,
+    "WETH": 1_670,
+    "LINK": 7.7,
+    "WBTC": 24_500,
+    "wstETH": 1_780,
 }
 
 ilk_bytes = {
@@ -93,7 +93,7 @@ chainlink_oracles = {
 #}
 
 whale_addresses = {
-    "YFI": "0xf977814e90da44bfa03b6295a0616a897441acec",  #or: 0xF977814e90dA44bFA03b6295A0616a897441aceC
+    "YFI": "0xF977814e90dA44bFA03b6295A0616a897441aceC",  #or: 0xF977814e90dA44bFA03b6295A0616a897441aceC
     "WETH": "0x57757e3d981446d585af0d9ae4d7df6d64647806",
     "wstETH": "0x6cE0F913F035ec6195bC3cE885aec4C66E485BC4",
     "LINK": "0xf977814e90da44bfa03b6295a0616a897441acec",
@@ -118,10 +118,10 @@ production_vault_address = {
 #daistats.com --> collateral --> Dust: x*1e18
 maker_floor = {
     "YFI": 15000e18,
-    "WETH": 5000e18,
-    "wstETH": 5000e18,
+    "WETH": 3500e18,
+    "wstETH": 3500e18,
     "LINK": 15000e18,
-    "WBTC": 7500e8,
+    "WBTC": 3500e8,
 }
 
 #Maker ilk list: 
